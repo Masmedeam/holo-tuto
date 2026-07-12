@@ -114,9 +114,18 @@ function captionLines(words: Array<{ text: string }>, maxCharacters = 74) {
 }
 
 async function renderCaptionFrame(words: Array<{ text: string }>, active: number, output: string) {
-  const lines = captionLines(words);
+  // Keep the complete thought stable while the narration is spoken. Replacing
+  // short word groups mid-sentence made captions feel jumpy and removed context.
+  const sentenceEnd = (text: string) => /[.!?]["')\]]*$/.test(text);
+  let sentenceStart = Math.max(0, active);
+  while (active >= 0 && sentenceStart > 0 && !sentenceEnd(words[sentenceStart - 1].text)) sentenceStart -= 1;
+  let sentenceStop = Math.max(0, active);
+  while (active >= 0 && sentenceStop < words.length - 1 && !sentenceEnd(words[sentenceStop].text)) sentenceStop += 1;
+  const visibleWords = active < 0 ? [] : words.slice(sentenceStart, sentenceStop + 1);
+  const visibleActive = active < 0 ? -1 : active - sentenceStart;
+  const lines = captionLines(visibleWords, 68);
   const firstY = lines.length === 1 ? 84 : 48;
-  const markup = lines.map((line, lineIndex) => `<text x="${CAPTION_WIDTH / 2}" y="${firstY + lineIndex * 52}" text-anchor="middle" font-family="DejaVu Sans" font-size="42" font-weight="700" fill="white" stroke="#07101f" stroke-opacity=".92" stroke-width="4" paint-order="stroke">${line.map((word, wordIndex) => `<tspan dx="${wordIndex ? 12 : 0}" fill="${word.index === active ? "#6550c8" : "#ffffff"}">${escapeXml(word.text)}</tspan>`).join("")}</text>`).join("");
+  const markup = lines.map((line, lineIndex) => `<text x="${CAPTION_WIDTH / 2}" y="${firstY + lineIndex * 52}" text-anchor="middle" font-family="DejaVu Sans" font-size="42" font-weight="700" fill="white" stroke="#030712" stroke-opacity=".98" stroke-width="5" stroke-linejoin="round" paint-order="stroke">${line.map((word, wordIndex) => `<tspan dx="${wordIndex ? 12 : 0}" fill="${word.index === visibleActive ? "#c4b5fd" : "#ffffff"}">${escapeXml(word.text)}</tspan>`).join("")}</text>`).join("");
   await sharp(Buffer.from(`<svg width="${CAPTION_WIDTH}" height="${CAPTION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">${markup}</svg>`)).png().toFile(output);
 }
 
@@ -154,14 +163,17 @@ async function duration(file: string) {
   return value;
 }
 
-function cameraFilter(box: ReturnType<typeof focusBox>) {
+function cameraFilter(box: ReturnType<typeof focusBox>, sceneDuration: number) {
   const zoom = box ? box.bounded ? 1.22 : 1.28 : 1.04;
   const zoomDelta = (zoom - 1).toFixed(3);
   const targetX = box?.centerX ?? WIDTH / 2;
   const targetY = box?.centerY ?? HEIGHT / 2;
+  const zoomInFrames = 24;
+  const zoomOutFrames = 15;
+  const zoomOutStart = Math.max(zoomInFrames + 1, Math.floor(sceneDuration * 30) - zoomOutFrames - 2);
   // Keep the source at its native 1080p canvas and quantize crop positions to
   // even pixels. This avoids shake without the expensive 2x up/downscale pass.
-  return `format=yuv444p,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/26,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
+  return `format=yuv444p,zoompan=z='if(lt(on,${zoomInFrames}),1+${zoomDelta}*(1-cos(PI*on/${zoomInFrames}))/2,if(lt(on,${zoomOutStart}),1+${zoomDelta},1+${zoomDelta}*(1+cos(PI*min((on-${zoomOutStart})/${zoomOutFrames},1)))/2))':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
 }
 
 export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: NarratedAudio[], targetDuration: TargetDuration = 45) {
@@ -203,6 +215,11 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const startY = 915;
     const movementEnd = Math.min(.9, Math.max(.7, sceneDuration * .18));
     const transitionAt = Math.min(sceneDuration - .65, movementEnd + .28);
+    const afterScreenshot = scenes[index].afterScreenshot;
+    const sameScreen = !afterScreenshot || scenes[index].screenshot.equals(afterScreenshot);
+    const screenTransition = sameScreen
+      ? `[0:v]null[screen];[1:v]nullsink;`
+      : `[0:v][1:v]xfade=transition=fade:duration=0.12:offset=${transitionAt.toFixed(2)}[screen];`;
     const cursorX = `${startX}+(${targetX}-${startX})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
     const cursorY = `${startY}+(${targetY}-${startY})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
     try {
@@ -215,12 +232,12 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         "-f", "concat", "-safe", "0", "-i", captions,
         "-i", wav,
         "-filter_complex",
-        `[0:v][1:v]xfade=transition=fade:duration=0.28:offset=${transitionAt.toFixed(2)}[screen];` +
+        screenTransition +
         `[screen][2:v]overlay=0:0[focused];` +
         `[focused][3:v]overlay=x='${cursorX}':y='${cursorY}':eval=frame[cursor];` +
-        `[cursor]${cameraFilter(box)}[camera];` +
+        `[cursor]${cameraFilter(box, sceneDuration)}[camera];` +
         `[4:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv444:alpha=straight[captioned];` +
-        `[captioned]fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
+        `[captioned]format=yuv420p[v];` +
         `[5:a]atempo=${tempo.toFixed(4)},adelay=180:all=1,apad=pad_dur=1[a]`,
         "-map", "[v]", "-map", "[a]", "-t", String(sceneDuration), "-r", "30",
         "-c:v", "libx264", "-preset", "fast", "-tune", "stillimage", "-crf", "16", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4

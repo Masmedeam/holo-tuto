@@ -18,6 +18,7 @@ type Candidate = {
   afterSource?: string;
   pageTitle: string;
   action?: Action;
+  stepIndex?: number;
 };
 
 function sentenceCase(value: string) {
@@ -75,12 +76,6 @@ export function selectInOrder<T>(items: T[], max: number): T[] {
   }
   for (let index = 0; indices.size < max && index < items.length; index++) indices.add(index);
   return [...indices].sort((a, b) => a - b).map((index) => items[index]);
-}
-
-export function limitWords(value: string, maxWords: number) {
-  const words = value.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return value.trim();
-  return `${words.slice(0, maxWords).join(" ").replace(/[,:;.!?]+$/, "")}.`;
 }
 
 function actionKind(tool = ""): TutorialScene["action"] {
@@ -166,7 +161,8 @@ export async function eventsToScenes(
       pageTitle: observation.title,
       action: findAction(agentEvents, observation.index + 1, next?.index ?? agentEvents.length, observation.metadata)
     };
-  }).filter((candidate, index, all) => (candidate.action || index === all.length - 1) && !isAuthenticationAction(candidate.action));
+  }).filter((candidate, index, all) => (candidate.action || index === all.length - 1) && !isAuthenticationAction(candidate.action))
+    .map((candidate, stepIndex) => ({ ...candidate, stepIndex }));
 
   const hydrated: Array<Candidate & { screenshot: Buffer; afterScreenshot?: Buffer }> = [];
   let previousHash = "";
@@ -184,10 +180,9 @@ export async function eventsToScenes(
   const selected = selectInOrder(hydrated, sceneLimits[options.targetDuration]);
   const report = parseWorkflowReport(answer);
   const subject = feature || report?.summary || `a useful workflow in ${selected[0].pageTitle}`;
-  const wordsPerScene = Math.max(7, Math.floor(((options.targetDuration - selected.length * .65) * 2.35) / selected.length));
 
   const scenes: TutorialScene[] = selected.map((candidate, index) => {
-    const findingIndex = selected.length <= 1 ? 0 : Math.round(index * Math.max(0, (report?.steps.length || 1) - 1) / (selected.length - 1));
+    const findingIndex = Math.min(candidate.stepIndex || 0, Math.max(0, (report?.steps.length || 1) - 1));
     const finding = report?.steps[findingIndex];
     const kind = actionKind(candidate.action?.tool);
     const element = candidate.action ? shortElement(candidate.action.element) : "the completed result";
@@ -203,9 +198,8 @@ export async function eventsToScenes(
       : kind === "scroll" ? "Scroll to reveal the next part of the workflow."
       : candidate.action ? `Select ${element} to continue.`
       : `Review the completed ${subject}.`);
-    if (index === 0 && options.introduction) narration = `${options.introduction} ${limitWords(narration, Math.max(4, wordsPerScene - options.introduction.split(/\s+/).length))}`;
+    if (index === 0 && options.introduction) narration = `${options.introduction} ${narration}`;
     if (isLast && report?.completion && !narration.includes(report.completion)) narration = `${narration} ${report.completion}`;
-    narration = options.introduction && index === 0 ? narration : limitWords(narration, wordsPerScene);
 
     const x = normalizeCoordinate(candidate.action?.x, candidate.action?.viewportWidth);
     const y = normalizeCoordinate(candidate.action?.y, candidate.action?.viewportHeight);
@@ -217,7 +211,7 @@ export async function eventsToScenes(
       afterScreenshot: candidate.afterScreenshot,
       heading,
       caption,
-      narration: narration.slice(0, 600),
+      narration: narration.slice(0, 800),
       action: kind,
       highlight: x !== undefined && y !== undefined ? {
         x,
