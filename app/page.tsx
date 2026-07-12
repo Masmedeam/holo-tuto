@@ -141,11 +141,7 @@ export default function Home() {
       <section className="workspace">
         <form onSubmit={generate} className="generator-card">
           <div className="card-heading">
-            <div>
-              <span className="step-label">NEW TUTORIAL</span>
-              <h2>What should we explain?</h2>
-            </div>
-            <div className="spark">✦</div>
+            <h2>What should we explain?</h2>
           </div>
 
           <label>
@@ -277,7 +273,7 @@ export default function Home() {
       {history.length > 0 && (
         <section className="history-section">
           <div className="history-heading">
-            <div><span className="step-label">YOUR LIBRARY</span><h2>Previous tutorials</h2></div>
+            <h2>Previous tutorials</h2>
             <p>Saved in this browser. Private video links remain available for seven days.</p>
           </div>
           <div className="history-grid">

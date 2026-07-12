@@ -64,9 +64,23 @@ export function parseWorkflowReport(answer: string): HWorkflowReport | undefined
   }
 }
 
-function sample<T>(items: T[], max: number): T[] {
+export function selectInOrder<T>(items: T[], max: number): T[] {
   if (items.length <= max) return items;
-  return Array.from({ length: max }, (_, index) => items[Math.round(index * (items.length - 1) / (max - 1))]);
+  if (max <= 1) return items.slice(0, 1);
+  const indices = new Set([0, items.length - 1]);
+  if (max >= 3) indices.add(1);
+  const remaining = max - indices.size;
+  for (let slot = 1; slot <= remaining; slot++) {
+    indices.add(1 + Math.round(slot * (items.length - 2) / (remaining + 1)));
+  }
+  for (let index = 0; indices.size < max && index < items.length; index++) indices.add(index);
+  return [...indices].sort((a, b) => a - b).map((index) => items[index]);
+}
+
+export function limitWords(value: string, maxWords: number) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return value.trim();
+  return `${words.slice(0, maxWords).join(" ").replace(/[,:;.!?]+$/, "")}.`;
 }
 
 function actionKind(tool = ""): TutorialScene["action"] {
@@ -98,6 +112,7 @@ function findAction(events: HEvent[], start: number, end: number, metadata: Reco
     const args = request.args || {};
     const bounds = args.bounds && typeof args.bounds === "object" ? args.bounds as Record<string, unknown> : {};
     const viewport = metadata.viewport && typeof metadata.viewport === "object" ? metadata.viewport as Record<string, unknown> : {};
+    const viewportSize = Array.isArray(metadata.viewport_size) ? metadata.viewport_size : [];
     const pointX = firstNumber(args, ["x", "center_x", "centerX"]);
     const pointY = firstNumber(args, ["y", "center_y", "centerY"]);
     const boundsX = firstNumber(bounds, ["x", "left"]);
@@ -111,8 +126,8 @@ function findAction(events: HEvent[], start: number, end: number, metadata: Reco
       y: pointY ?? (boundsY !== undefined ? boundsY + (boundsHeight || 0) / 2 : undefined),
       width: boundsWidth,
       height: boundsHeight,
-      viewportWidth: firstNumber(args, ["viewport_width", "viewportWidth"]) ?? firstNumber(viewport, ["width"]) ?? firstNumber(metadata, ["viewport_width", "viewportWidth"]),
-      viewportHeight: firstNumber(args, ["viewport_height", "viewportHeight"]) ?? firstNumber(viewport, ["height"]) ?? firstNumber(metadata, ["viewport_height", "viewportHeight"])
+      viewportWidth: firstNumber(args, ["viewport_width", "viewportWidth"]) ?? firstNumber(viewport, ["width"]) ?? number(viewportSize[0]) ?? firstNumber(metadata, ["viewport_width", "viewportWidth"]),
+      viewportHeight: firstNumber(args, ["viewport_height", "viewportHeight"]) ?? firstNumber(viewport, ["height"]) ?? number(viewportSize[1]) ?? firstNumber(metadata, ["viewport_height", "viewportHeight"])
     };
   }
 }
@@ -165,10 +180,11 @@ export async function eventsToScenes(
   }
 
   if (hydrated.length < 2) throw new Error("H could not capture enough distinct screens for a tutorial. Try naming a more specific feature.");
-  const sceneLimits = { 15: 2, 30: 4, 45: 6, 60: 8, 90: 12 } as const;
-  const selected = sample(hydrated, sceneLimits[options.targetDuration]);
+  const sceneLimits = { 15: 3, 30: 6, 45: 8, 60: 10, 90: 14 } as const;
+  const selected = selectInOrder(hydrated, sceneLimits[options.targetDuration]);
   const report = parseWorkflowReport(answer);
   const subject = feature || report?.summary || `a useful workflow in ${selected[0].pageTitle}`;
+  const wordsPerScene = Math.max(7, Math.floor(((options.targetDuration - selected.length * .65) * 2.35) / selected.length));
 
   const scenes: TutorialScene[] = selected.map((candidate, index) => {
     const findingIndex = selected.length <= 1 ? 0 : Math.round(index * Math.max(0, (report?.steps.length || 1) - 1) / (selected.length - 1));
@@ -188,9 +204,10 @@ export async function eventsToScenes(
       : candidate.action ? `Select ${element} to continue.`
       : `Review the completed ${subject}.`);
     if (index === 0) narration = options.introduction
-      ? `${options.introduction} ${narration}`
+      ? `${options.introduction} ${limitWords(narration, Math.max(4, wordsPerScene - options.introduction.split(/\s+/).length))}`
       : `Here is how to ${subject}. ${narration}`;
     if (isLast && report?.completion && !narration.includes(report.completion)) narration = `${narration} ${report.completion}`;
+    narration = options.introduction && index === 0 ? narration : limitWords(narration, wordsPerScene);
 
     const x = normalizeCoordinate(candidate.action?.x, candidate.action?.viewportWidth);
     const y = normalizeCoordinate(candidate.action?.y, candidate.action?.viewportHeight);

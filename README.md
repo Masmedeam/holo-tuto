@@ -17,7 +17,7 @@ Paste an application URL, describe what should be explained, and choose a voice,
 - Adds smooth camera framing, cursor travel, click feedback, spotlight focus, and before/after transitions.
 - Builds scene-level teaching scripts from the observed workflow.
 - Generates natural voice-over with Gradium.
-- Renders a shareable 1280×720 MP4 with FFmpeg.
+- Captures a 1920×1080 browser viewport and renders a shareable 1080p MP4 with FFmpeg.
 - Publishes videos as private Google Cloud Storage objects with expiring signed URLs.
 - Keeps a per-browser library of recent tutorials with watch and download actions.
 

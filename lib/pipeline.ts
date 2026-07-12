@@ -31,7 +31,7 @@ export async function generateTutorial(
     const audio = await narrateScenes(tutorial.scenes, options, notify, jobId);
     log("narration.completed", { sceneCount: audio.length });
     notify({ type: "progress", stage: "Rendering", message: "Composing the final video…", progress: 78, jobId });
-    const rendered = await renderTutorial(workDir, tutorial.scenes, audio);
+    const rendered = await renderTutorial(workDir, tutorial.scenes, audio, options.targetDuration);
     log("render.completed", { duration: Number(rendered.duration.toFixed(1)) });
     notify({ type: "progress", stage: "Finishing", message: "Uploading your tutorial…", progress: 94, jobId });
     const published = await publishVideo(rendered.output, jobId, tutorial.title);

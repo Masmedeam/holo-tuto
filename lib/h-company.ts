@@ -35,11 +35,11 @@ export async function runCaptureSession(
 ) {
   const { targetDuration } = options;
   const stepTargets = {
-    15: "2 meaningful visual steps",
-    30: "3 to 4 meaningful visual steps",
-    45: "4 to 6 meaningful visual steps",
-    60: "6 to 8 meaningful visual steps",
-    90: "8 to 12 meaningful visual steps"
+    15: "2 to 3 meaningful visual steps",
+    30: "4 to 6 meaningful visual steps",
+    45: "6 to 8 meaningful visual steps",
+    60: "8 to 10 meaningful visual steps",
+    90: "10 to 14 meaningful visual steps"
   } as const;
   const objective = feature
     ? `Create a concise visual walkthrough of this feature: ${feature}.`
@@ -52,7 +52,7 @@ export async function runCaptureSession(
 Stay only on the supplied application. This is a controlled tutorial environment, so perform the real workflow, including creating, editing, submitting, uploading, downloading, exporting, or deleting test data when the requested workflow requires it. Use only clearly designated test data, never change authentication or security settings, never make a purchase, and never communicate with people outside the application unless the request explicitly requires it. Avoid search engines and external websites.
 ${authentication}
 
-Observe the screen before each meaningful action and the result immediately afterward. Aim for ${stepTargets[targetDuration]}. When finished, return ONLY valid JSON in this exact shape:
+Observe the screen before each meaningful action and the result immediately afterward. Aim for ${stepTargets[targetDuration]}. Preserve the workflow's earliest prerequisite steps. Keep each narration sentence under 14 words so the finished tutorial can fit its requested duration. When finished, return ONLY valid JSON in this exact shape:
 {"title":"Short tutorial title","summary":"What the workflow accomplishes","completion":"How the user knows it worked","steps":[{"action":"What the user does","purpose":"Why this step matters","result":"What visibly changes","narration":"One concise, natural sentence that teaches the step without merely describing the click"}]}
 
 Keep each narration sentence specific to what you observed. Mention important choices, consequences, or confirmation states. Do not use markdown fences.`;
@@ -62,7 +62,11 @@ Keep each narration sentence specific to what you observed. Mention important ch
     body: JSON.stringify({
       agent: "h/web-surfer-flash",
       messages: [{ type: "user_message", message: prompt }],
-      overrides: { "agent.environments[kind=web].start_url": sourceUrl.toString() },
+      overrides: {
+        "agent.environments[kind=web].start_url": sourceUrl.toString(),
+        "agent.environments[kind=web].mode.width": 1920,
+        "agent.environments[kind=web].mode.height": 1080
+      },
       max_steps: targetDuration >= 60 ? 20 : 14,
       max_time_s: targetDuration >= 60 ? 300 : 240,
       queue: true

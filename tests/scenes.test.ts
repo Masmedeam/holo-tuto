@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeCoordinate, parseWorkflowReport } from "../lib/scenes";
+import { limitWords, normalizeCoordinate, parseWorkflowReport, selectInOrder } from "../lib/scenes";
 
 test("normalizes pixel and proportional browser coordinates", () => {
   assert.equal(normalizeCoordinate(640, 1280), 0.5);
@@ -18,4 +18,12 @@ test("extracts a structured workflow report from the H answer", () => {
 
 test("ignores non-JSON browser summaries", () => {
   assert.equal(parseWorkflowReport("The workflow is complete."), undefined);
+});
+
+test("preserves prerequisite and completion scenes when a workflow must be shortened", () => {
+  assert.deepEqual(selectInOrder([0, 1, 2, 3, 4, 5, 6, 7, 8], 4), [0, 1, 5, 8]);
+});
+
+test("caps narration without cutting a word in half", () => {
+  assert.equal(limitWords("One two three four five six", 4), "One two three four.");
 });
