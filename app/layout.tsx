@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Holo Tutorial",
-  description: "Turn any web application workflow into a narrated tutorial video."
+  title: "Voodoo — Turn software into a clear video",
+  description: "Paste a web app link and Voodoo creates a polished narrated tutorial for you."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

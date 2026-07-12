@@ -1,12 +1,12 @@
-# Holo Tutorial
+# Voodoo
 
 > Turn a software workflow into a polished narrated tutorial.
 
-![Holo Tutorial transforms a web-app workflow into a narrated video](public/readme/holo-tutorial-hero.png)
+![Voodoo transforms a web-app workflow into a narrated video](public/landing/voodoo-hero.webp)
 
-Holo Tutorial explores a web application, identifies the important moments in a requested workflow, writes a concise teaching script, generates natural narration, and renders the result as an animated MP4.
+Voodoo explores a web application, identifies the important moments in a requested workflow, writes a concise teaching script, generates natural narration, and renders the result as an animated MP4.
 
-Paste an application URL, describe what should be explained, and choose a voice, delivery style, and target duration. Holo handles the browser workflow, visual direction, narration, rendering, and private delivery.
+Paste an application URL, describe what should be explained, and choose a voice, delivery style, and target duration. Voodoo handles the browser workflow, visual direction, narration, rendering, and private delivery.
 
 ## What it does
 
@@ -52,7 +52,7 @@ Private signed video URL
 
 ## Tutorial controls
 
-- **Feature or workflow:** the specific task Holo should demonstrate. When omitted, Holo selects a useful feature.
+- **Feature or workflow:** the specific task Voodoo should demonstrate. When omitted, Voodoo selects a useful feature.
 - **Narrator:** choose from the available Gradium voices and hear a bundled sample of each voice instantly.
 - **Delivery:** professional, warm, energetic, or calm.
 - **Opening line:** optional exact wording for the start of the tutorial.
@@ -90,7 +90,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). When `HOLO_ACCESS_CODE` is unset locally, any non-empty beta code is accepted.
+Open the landing page at [http://localhost:3000](http://localhost:3000) and the generator at [http://localhost:3000/app](http://localhost:3000/app). When `HOLO_ACCESS_CODE` is unset locally, any non-empty beta code is accepted.
 
 ## Quality checks
 
@@ -127,7 +127,7 @@ Optional deployment variables include `GOOGLE_CLOUD_REGION`, `CLOUD_RUN_SERVICE`
 - Recent tutorial metadata is stored only in the creator's browser; access links expire after seven days.
 - The public generation endpoint requires an independent beta access code.
 - Browser sessions remain on the submitted hostname.
-- Optional application credentials are passed only to the controlled browser run, are excluded from logs and generated scripts, and are never persisted by Holo.
+- Optional application credentials are passed only to the controlled browser run, are excluded from logs and generated scripts, and are never persisted by Voodoo.
 - Controlled workflows may change designated test data, but purchases, authentication changes, and unrequested external communication remain prohibited.
 
 ## Project structure

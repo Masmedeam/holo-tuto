@@ -62,9 +62,9 @@ gcloud run deploy "$SERVICE" \
   --region "$REGION" \
   --service-account "$SA_EMAIL" \
   --allow-unauthenticated \
-  --cpu 2 \
+  --cpu 4 \
   --memory 2Gi \
-  --concurrency 2 \
+  --concurrency 1 \
   --timeout 900 \
   --max-instances 4 \
   --set-env-vars="VIDEO_BUCKET=$BUCKET" \

@@ -1,335 +1,138 @@
-"use client";
-
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
-type ProgressEvent = {
-  type: "progress" | "complete" | "error";
-  stage?: string;
-  message?: string;
-  progress?: number;
-  videoUrl?: string;
-  downloadUrl?: string;
-  expiresAt?: string;
-  jobId?: string;
-  title?: string;
-  duration?: number;
-};
-
-type HistoryVideo = ProgressEvent & {
-  type: "complete";
-  videoUrl: string;
-  createdAt: string;
-  sourceUrl?: string;
-};
-
-const stages = ["Preparing", "Navigating", "Curating", "Narrating", "Rendering", "Finishing"];
-const historyKey = "holo:tutorial-history:v1";
-const maxHistoryItems = 20;
-const narratorOptions = [
-  { name: "Orla", tone: "polished" },
-  { name: "Niamh", tone: "approachable" },
-  { name: "Quinn", tone: "contemporary" },
-  { name: "Harper", tone: "confident" },
-  { name: "Toby", tone: "concise" }
+const useCases = [
+  { icon: "↗", title: "Customer onboarding", text: "Help new users reach their first win without a long call." },
+  { icon: "?", title: "Support", text: "Answer repeat questions with a short, clear walkthrough." },
+  { icon: "✓", title: "Team training", text: "Teach internal tools and processes in a format people will use." },
+  { icon: "✦", title: "Product updates", text: "Show what changed and how to use it while the release is still fresh." }
 ];
 
-export default function Home() {
-  const [url, setUrl] = useState("");
-  const [feature, setFeature] = useState("");
-  const [accessCode, setAccessCode] = useState("");
-  const [voice, setVoice] = useState("Orla");
-  const [delivery, setDelivery] = useState("professional");
-  const [introduction, setIntroduction] = useState("");
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [targetDuration, setTargetDuration] = useState(45);
-  const [status, setStatus] = useState<ProgressEvent | null>(null);
-  const [running, setRunning] = useState(false);
-  const [video, setVideo] = useState<ProgressEvent | null>(null);
-  const [history, setHistory] = useState<HistoryVideo[]>([]);
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const previewAudio = useRef<HTMLAudioElement | null>(null);
+const teams = ["Product", "Customer success", "Support", "Marketing", "People teams"];
 
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(historyKey) || "[]") as HistoryVideo[];
-      if (Array.isArray(stored)) setHistory(stored.filter((item) => item?.type === "complete" && typeof item.videoUrl === "string" && typeof item.createdAt === "string").slice(0, maxHistoryItems));
-    } catch {
-      localStorage.removeItem(historyKey);
-    }
-    return () => previewAudio.current?.pause();
-  }, []);
-
-  const activeStage = useMemo(() => {
-    if (!status?.stage) return -1;
-    return stages.findIndex((stage) => stage.toLowerCase() === status.stage?.toLowerCase());
-  }, [status]);
-
-  function rememberVideo(update: ProgressEvent) {
-    if (!update.videoUrl) return;
-    const item: HistoryVideo = {
-      ...update,
-      type: "complete",
-      videoUrl: update.videoUrl,
-      createdAt: new Date().toISOString(),
-      sourceUrl: url
-    };
-    setHistory((current) => {
-      const next = [item, ...current.filter((previous) => previous.jobId !== item.jobId)].slice(0, maxHistoryItems);
-      try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
-      return next;
-    });
-  }
-
-  function removeHistoryItem(identifier: string) {
-    setHistory((current) => {
-      const next = current.filter((item) => (item.jobId || item.createdAt) !== identifier);
-      try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
-      return next;
-    });
-  }
-
-  function hearVoice(name: string) {
-    previewAudio.current?.pause();
-    if (playingVoice === name) {
-      previewAudio.current = null;
-      setPlayingVoice(null);
-      return;
-    }
-    const audio = new Audio(`/voice-previews/${name}.wav`);
-    previewAudio.current = audio;
-    setPlayingVoice(name);
-    audio.onended = () => setPlayingVoice(null);
-    audio.onerror = () => setPlayingVoice(null);
-    audio.play().catch(() => setPlayingVoice(null));
-  }
-
-  async function generate(event: FormEvent) {
-    event.preventDefault();
-    setRunning(true);
-    setVideo(null);
-    setStatus({ type: "progress", stage: "Preparing", message: "Starting your tutorial…", progress: 3 });
-
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url, feature, accessCode, voice, delivery, introduction, targetDuration, loginUsername, loginPassword })
-      });
-      setLoginPassword("");
-
-      if (!response.ok || !response.body) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Could not start tutorial generation.");
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const update = JSON.parse(line) as ProgressEvent;
-          if (update.type === "error") throw new Error(update.message || "Generation failed.");
-          setStatus(update);
-          if (update.type === "complete") {
-            setVideo(update);
-            rememberVideo(update);
-          }
-        }
-        if (done) break;
-      }
-    } catch (error) {
-      setStatus({ type: "error", message: error instanceof Error ? error.message : "Something went wrong." });
-    } finally {
-      setRunning(false);
-    }
-  }
-
+export default function LandingPage() {
   return (
-    <main>
-      <nav>
+    <main className="landing">
+      <header className="landing-header">
+        <nav className="landing-nav">
+          <Logo />
+          <div className="nav-links">
+            <a href="#how-it-works">How it works</a>
+            <a href="#use-cases">Use cases</a>
+          </div>
+          <Link className="nav-cta" href="/app">Open Voodoo <span>→</span></Link>
+        </nav>
+      </header>
+
+      <section className="landing-hero">
+        <div className="eyebrow"><span>✦</span> Video tutorials, made for you</div>
+        <h1>Show people how<br /><em>your product works.</em></h1>
+        <p>Paste a web app link and name a task. Voodoo uses the product, captures the important steps, and creates a clear narrated video.</p>
+        <div className="hero-actions">
+          <Link className="primary-cta" href="/app">Create a tutorial <span>→</span></Link>
+          <a className="text-link" href="#how-it-works">See how it works <span>↓</span></a>
+        </div>
+        <div className="hero-visual">
+          <Image src="/landing/voodoo-hero.webp" alt="A software workflow becoming a narrated video tutorial" width={1536} height={824} priority sizes="(max-width: 900px) 94vw, 1180px" />
+        </div>
+        <div className="hero-note"><span>One link.</span><span>One task.</span><span>One ready-to-share video.</span></div>
+      </section>
+
+      <section className="story-section section-problem" id="why-voodoo">
+        <div className="section-copy">
+          <span className="section-number">01 · THE PROBLEM</span>
+          <h2>Helpful videos should not take days to make.</h2>
+          <p>People want to see how a product works. But recording, narrating, editing, and updating every tutorial takes too much time.</p>
+          <p>So videos go out of date—or never get made at all.</p>
+        </div>
+        <div className="section-image">
+          <Image src="/landing/problem.webp" alt="Outdated documents and repeated video recording work" width={1536} height={1024} sizes="(max-width: 800px) 94vw, 52vw" />
+        </div>
+      </section>
+
+      <section className="story-section reverse section-proof">
+        <div className="section-copy">
+          <span className="section-number">02 · WHY VIDEO</span>
+          <h2>Showing is better than telling.</h2>
+          <p>A short walkthrough gives people the full picture: where to go, what to click, and what should happen next.</p>
+          <ul className="simple-list">
+            <li><span>✓</span> Easier to follow</li>
+            <li><span>✓</span> Faster to understand</li>
+            <li><span>✓</span> Simple to share</li>
+          </ul>
+        </div>
+        <div className="section-image">
+          <Image src="/landing/visual-proof.webp" alt="A clear video replacing a large pile of written instructions" width={1536} height={1024} sizes="(max-width: 800px) 94vw, 52vw" />
+        </div>
+      </section>
+
+      <section className="story-section" id="how-it-works">
+        <div className="section-copy">
+          <span className="section-number">03 · HOW IT WORKS</span>
+          <h2>From app link to finished video.</h2>
+          <div className="step-list">
+            <div><b>1</b><p><strong>Describe the task.</strong><br />Add the app link and say what you want to explain.</p></div>
+            <div><b>2</b><p><strong>Voodoo does the work.</strong><br />It follows the workflow and keeps the useful moments.</p></div>
+            <div><b>3</b><p><strong>Share the result.</strong><br />Get a polished video with narration, captions, and smooth focus.</p></div>
+          </div>
+        </div>
+        <div className="section-image">
+          <Image src="/landing/how-it-works.webp" alt="Three steps from application link to narrated video" width={1536} height={768} sizes="(max-width: 800px) 94vw, 52vw" />
+        </div>
+      </section>
+
+      <section className="story-section reverse section-current">
+        <div className="section-copy">
+          <span className="section-number">04 · STAY CURRENT</span>
+          <h2>Your product changed. Your tutorial can too.</h2>
+          <p>When the interface changes, skip the studio setup and editing timeline. Run the tutorial again and get a fresh version.</p>
+          <div className="callout"><span>↻</span><p><strong>Regenerate, don&apos;t re-record.</strong><br />Keep help content close to the product people actually use.</p></div>
+        </div>
+        <div className="section-image">
+          <Image src="/landing/stay-current.webp" alt="A product update becoming a refreshed video tutorial" width={1536} height={864} sizes="(max-width: 800px) 94vw, 52vw" />
+        </div>
+      </section>
+
+      <section className="use-case-section" id="use-cases">
+        <div className="section-heading">
+          <span className="section-number">05 · USE CASES</span>
+          <h2>One clear video.<br />Many useful moments.</h2>
+          <p>Use Voodoo anywhere someone needs to understand software quickly.</p>
+        </div>
+        <div className="use-case-layout">
+          <div className="use-case-image"><Image src="/landing/use-cases.webp" alt="A tutorial supporting onboarding, support, training, and product updates" width={1536} height={864} sizes="(max-width: 800px) 94vw, 52vw" /></div>
+          <div className="use-case-grid">
+            {useCases.map((item) => <article key={item.title}><span>{item.icon}</span><h3>{item.title}</h3><p>{item.text}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="story-section reverse section-teams">
+        <div className="section-copy">
+          <span className="section-number">06 · BUILT FOR TEAMS</span>
+          <h2>Make product knowledge easy to find and easy to trust.</h2>
+          <p>Give every team a simple way to create visual help, without waiting for a video expert.</p>
+          <div className="team-pills">{teams.map((team) => <span key={team}>{team}</span>)}</div>
+        </div>
+        <div className="section-image">
+          <Image src="/landing/teams.webp" alt="Different teams connected to one clear tutorial library" width={1536} height={1024} sizes="(max-width: 800px) 94vw, 52vw" />
+        </div>
+      </section>
+
+      <section className="final-cta">
+        <div className="cta-spark">✦</div>
+        <span>READY WHEN YOU ARE</span>
+        <h2>Turn your next workflow<br />into a clear video.</h2>
+        <p>No recording setup. No editing timeline. Just show Voodoo what to explain.</p>
+        <Link className="primary-cta light" href="/app">Create a tutorial <span>→</span></Link>
+      </section>
+
+      <footer className="landing-footer">
         <Logo />
-      </nav>
-
-      <section className="hero">
-        <h1>Turn software into<br /><em>a clear tutorial.</em></h1>
-        <p className="intro">Paste a web app link. Holo explores the workflow, captures each important moment, and returns a polished narrated video.</p>
-      </section>
-
-      <section className="workspace">
-        <form onSubmit={generate} className="generator-card">
-          <div className="card-heading">
-            <h2>What should we explain?</h2>
-          </div>
-
-          <label>
-            Application URL
-            <div className="input-wrap">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" /></svg>
-              <input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://your-app.com" disabled={running} />
-            </div>
-          </label>
-
-          <label>
-            Feature or workflow <span className="optional">Optional</span>
-            <textarea value={feature} onChange={(e) => setFeature(e.target.value)} placeholder="e.g. How to create a monthly sales report" maxLength={300} disabled={running} />
-            <span className="hint">Leave blank and Holo will choose a useful feature to demonstrate.</span>
-          </label>
-
-          <label>
-            Private beta access
-            <input className="access-input" type="password" required value={accessCode} onChange={(e) => setAccessCode(e.target.value)} placeholder="Enter your access code" autoComplete="current-password" disabled={running} />
-          </label>
-
-          <details className="more-options">
-            <summary>
-              <span><strong>More options</strong><small>Voice, delivery, and video length</small></span>
-              <i aria-hidden="true">+</i>
-            </summary>
-            <div className="options-content">
-              <div className="narration-options">
-                <div className="narrator-field">
-                  <span className="field-label">Narrator</span>
-                  <div className="voice-picker">
-                    {narratorOptions.map((option) => (
-                      <div className={`voice-option ${voice === option.name ? "selected" : ""}`} key={option.name}>
-                        <button type="button" className="voice-select" aria-pressed={voice === option.name} onClick={() => setVoice(option.name)} disabled={running}>
-                          <strong>{option.name}</strong><span>{option.tone}</span>
-                        </button>
-                        <button type="button" className="voice-hear" onClick={() => hearVoice(option.name)} aria-label={`${playingVoice === option.name ? "Stop" : "Hear"} ${option.name}`}>
-                          {playingVoice === option.name ? "■ Stop" : "▶ Hear"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <label>
-                  Delivery
-                  <select value={delivery} onChange={(e) => setDelivery(e.target.value)} disabled={running}>
-                    <option value="professional">Professional</option>
-                    <option value="warm">Warm &amp; friendly</option>
-                    <option value="energetic">Energetic</option>
-                    <option value="calm">Calm &amp; measured</option>
-                  </select>
-                </label>
-              </div>
-
-              <label>
-                Opening line <span className="optional">Optional</span>
-                <textarea className="intro-input" value={introduction} onChange={(e) => setIntroduction(e.target.value)} placeholder="e.g. Welcome to LedgerPro. In this guide, we’ll create a sales register by period." maxLength={240} disabled={running} />
-                <span className="hint">Use the exact words you want the narrator to open with. Delivery controls pace and expressiveness.</span>
-              </label>
-
-              <fieldset className="auth-options">
-                <legend>Application sign-in <span className="optional">Optional</span></legend>
-                <div className="option-grid">
-                  <label>
-                    Username or email
-                    <input type="text" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} placeholder="name@example.com" autoComplete="username" maxLength={320} required={Boolean(loginPassword)} disabled={running} />
-                  </label>
-                  <label>
-                    Password
-                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Application password" autoComplete="current-password" maxLength={512} required={Boolean(loginUsername)} disabled={running} />
-                  </label>
-                </div>
-                <p className="auth-note">Used only if the application asks Holo to sign in. These credentials are sent to the browser agent for this run and are never saved in your tutorial history or application logs.</p>
-              </fieldset>
-
-              <fieldset>
-                <legend>Target length</legend>
-                <div className="duration-options">
-                  {[15, 30, 45, 60, 90].map((seconds) => (
-                    <label key={seconds} className={targetDuration === seconds ? "selected" : ""}>
-                      <input type="radio" name="duration" value={seconds} checked={targetDuration === seconds} onChange={() => setTargetDuration(seconds)} disabled={running} />
-                      <strong>{seconds}s</strong>
-                      <span>{seconds === 15 ? "Snapshot" : seconds === 30 ? "Quick" : seconds === 45 ? "Standard" : seconds === 60 ? "Detailed" : "Walkthrough"}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="duration-note">Holo targets this length; the workflow may make the final video slightly shorter or longer.</p>
-              </fieldset>
-            </div>
-          </details>
-
-          <button className="generate-button" disabled={running || !url || !accessCode}>
-            {running ? <span className="spinner" /> : <span>✦</span>}
-            {running ? "Creating your tutorial" : "Generate tutorial"}
-            {!running && <span className="arrow">→</span>}
-          </button>
-        </form>
-
-        <aside className={`progress-card ${status ? "visible" : ""}`}>
-          {!status ? (
-            <div className="empty-state">
-              <div className="preview-icon"><span>▶</span></div>
-              <h3>Your video will appear here</h3>
-              <p>Most tutorials take 1–3 minutes.</p>
-            </div>
-          ) : video?.videoUrl ? (
-            <div className="result">
-              <div className="result-top"><span className="success-dot">✓</span><span>Ready to watch</span></div>
-              <video src={video.videoUrl} controls playsInline preload="metadata" />
-              <h3>{video.title || "Your Holo Tutorial"}</h3>
-              <div className="result-actions">
-                <a href={video.videoUrl} target="_blank" rel="noreferrer">Open video</a>
-                <a className="secondary-action" href={video.downloadUrl || video.videoUrl}>Download</a>
-                <button type="button" onClick={() => { setStatus(null); setVideo(null); }}>Create another</button>
-              </div>
-            </div>
-          ) : status.type === "error" ? (
-            <div className="error-state"><span>!</span><h3>We couldn’t finish this tutorial</h3><p>{status.message}</p>{status.jobId && <small>Reference: {status.jobId}</small>}<button type="button" onClick={() => setStatus(null)}>Try again</button></div>
-          ) : (
-            <div className="progress-state">
-              <div className="orb"><div /><span>✦</span></div>
-              <span className="making">CREATING YOUR VIDEO</span>
-              <h3>{status.message}</h3>
-              <div className="progress-bar"><i style={{ width: `${status.progress || 5}%` }} /></div>
-              <div className="stage-list">
-                {stages.map((stage, index) => <span key={stage} className={index <= activeStage ? "active" : ""}>{index < activeStage ? "✓" : index + 1} {stage}</span>)}
-              </div>
-              <p>Keep this tab open while Holo works.</p>
-            </div>
-          )}
-        </aside>
-      </section>
-
-      {history.length > 0 && (
-        <section className="history-section">
-          <div className="history-heading">
-            <h2>Previous tutorials</h2>
-            <p>Saved in this browser. Private video links remain available for seven days.</p>
-          </div>
-          <div className="history-grid">
-            {history.map((item) => {
-              const expired = item.expiresAt ? Date.parse(item.expiresAt) <= Date.now() : false;
-              return (
-                <article className="history-card" key={item.jobId || item.createdAt}>
-                  <button className="history-preview" type="button" disabled={expired} onClick={() => { setStatus(item); setVideo(item); window.scrollTo({ top: 430, behavior: "smooth" }); }}>
-                    <span>{expired ? "Expired" : "▶"}</span>
-                  </button>
-                  <div className="history-copy">
-                    <h3>{item.title || "Untitled tutorial"}</h3>
-                    <p>{new Date(item.createdAt).toLocaleString()}{item.duration ? ` · ${Math.round(item.duration)}s` : ""}</p>
-                    <div className="history-actions">
-                      {!expired && <a href={item.videoUrl} target="_blank" rel="noreferrer">Watch</a>}
-                      {!expired && <a href={item.downloadUrl || item.videoUrl}>Download</a>}
-                      <button type="button" onClick={() => removeHistoryItem(item.jobId || item.createdAt)}>Remove</button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
+        <p>Clear software tutorials, made automatically.</p>
+        <Link href="/app">Open the app →</Link>
+      </footer>
     </main>
   );
 }

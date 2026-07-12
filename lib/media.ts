@@ -173,7 +173,14 @@ function cameraFilter(box: ReturnType<typeof focusBox>, sceneDuration: number) {
   const zoomOutStart = Math.max(zoomInFrames + 1, Math.floor(sceneDuration * 30) - zoomOutFrames - 2);
   // Keep the source at its native 1080p canvas and quantize crop positions to
   // even pixels. This avoids shake without the expensive 2x up/downscale pass.
-  return `format=yuv444p,zoompan=z='if(lt(on,${zoomInFrames}),1+${zoomDelta}*(1-cos(PI*on/${zoomInFrames}))/2,if(lt(on,${zoomOutStart}),1+${zoomDelta},1+${zoomDelta}*(1+cos(PI*min((on-${zoomOutStart})/${zoomOutFrames},1)))/2))':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
+  return `format=yuv420p,zoompan=z='if(lt(on,${zoomInFrames}),1+${zoomDelta}*(1-cos(PI*on/${zoomInFrames}))/2,if(lt(on,${zoomOutStart}),1+${zoomDelta},1+${zoomDelta}*(1+cos(PI*min((on-${zoomOutStart})/${zoomOutFrames},1)))/2))':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
+}
+
+export function screenTransitionFilter(sameScreen: boolean, transitionAt: number) {
+  // Input 1 is an infinitely looped still. Sending it to nullsink makes FFmpeg
+  // process that branch forever and starves the actual encoder on small hosts.
+  if (sameScreen) return `[0:v]null[screen];`;
+  return `[0:v][1:v]xfade=transition=fade:duration=0.12:offset=${transitionAt.toFixed(2)}[screen];`;
 }
 
 export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: NarratedAudio[], targetDuration: TargetDuration = 45) {
@@ -217,9 +224,7 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const transitionAt = Math.min(sceneDuration - .65, movementEnd + .28);
     const afterScreenshot = scenes[index].afterScreenshot;
     const sameScreen = !afterScreenshot || scenes[index].screenshot.equals(afterScreenshot);
-    const screenTransition = sameScreen
-      ? `[0:v]null[screen];[1:v]nullsink;`
-      : `[0:v][1:v]xfade=transition=fade:duration=0.12:offset=${transitionAt.toFixed(2)}[screen];`;
+    const screenTransition = screenTransitionFilter(sameScreen, transitionAt);
     const cursorX = `${startX}+(${targetX}-${startX})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
     const cursorY = `${startY}+(${targetY}-${startY})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
     try {
@@ -236,12 +241,12 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         `[screen][2:v]overlay=0:0[focused];` +
         `[focused][3:v]overlay=x='${cursorX}':y='${cursorY}':eval=frame[cursor];` +
         `[cursor]${cameraFilter(box, sceneDuration)}[camera];` +
-        `[4:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv444:alpha=straight[captioned];` +
+        `[4:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv420:alpha=straight[captioned];` +
         `[captioned]format=yuv420p[v];` +
         `[5:a]atempo=${tempo.toFixed(4)},adelay=180:all=1,apad=pad_dur=1[a]`,
         "-map", "[v]", "-map", "[a]", "-t", String(sceneDuration), "-r", "30",
-        "-c:v", "libx264", "-preset", "fast", "-tune", "stillimage", "-crf", "16", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
-      ], { timeout: 180_000, maxBuffer: 3_000_000 });
+        "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-crf", "16", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
+      ], { timeout: 300_000, maxBuffer: 3_000_000 });
     } catch (error) {
       console.error(error);
       throw new Error(`Video rendering failed while composing scene ${index + 1}.`);
