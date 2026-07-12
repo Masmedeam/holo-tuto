@@ -34,6 +34,8 @@ export default function Home() {
   const [voice, setVoice] = useState("Orla");
   const [delivery, setDelivery] = useState("professional");
   const [introduction, setIntroduction] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [targetDuration, setTargetDuration] = useState(45);
   const [status, setStatus] = useState<ProgressEvent | null>(null);
   const [running, setRunning] = useState(false);
@@ -88,8 +90,9 @@ export default function Home() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url, feature, accessCode, voice, delivery, introduction, targetDuration })
+        body: JSON.stringify({ url, feature, accessCode, voice, delivery, introduction, targetDuration, loginUsername, loginPassword })
       });
+      setLoginPassword("");
 
       if (!response.ok || !response.body) {
         const payload = await response.json().catch(() => ({}));
@@ -197,6 +200,21 @@ export default function Home() {
                 <textarea className="intro-input" value={introduction} onChange={(e) => setIntroduction(e.target.value)} placeholder="e.g. Welcome to LedgerPro. In this guide, we’ll create a sales register by period." maxLength={240} disabled={running} />
                 <span className="hint">Use the exact words you want the narrator to open with. Delivery controls pace and expressiveness.</span>
               </label>
+
+              <fieldset className="auth-options">
+                <legend>Application sign-in <span className="optional">Optional</span></legend>
+                <div className="option-grid">
+                  <label>
+                    Username or email
+                    <input type="text" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} placeholder="name@example.com" autoComplete="username" maxLength={320} required={Boolean(loginPassword)} disabled={running} />
+                  </label>
+                  <label>
+                    Password
+                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Application password" autoComplete="current-password" maxLength={512} required={Boolean(loginUsername)} disabled={running} />
+                  </label>
+                </div>
+                <p className="auth-note">Used only if the application asks Holo to sign in. These credentials are sent to the browser agent for this run and are never saved in your tutorial history or application logs.</p>
+              </fieldset>
 
               <fieldset>
                 <legend>Target length</legend>

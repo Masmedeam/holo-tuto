@@ -79,6 +79,10 @@ function actionKind(tool = ""): TutorialScene["action"] {
   return tool ? "click" : "review";
 }
 
+function isAuthenticationAction(action?: Action) {
+  return action ? /\b(password|passcode|username|email|sign[ -]?in|log[ -]?in|login|authenticate)\b/i.test(`${action.tool} ${action.element}`) : false;
+}
+
 export function normalizeCoordinate(value: number | undefined, viewport: number | undefined) {
   if (value === undefined) return undefined;
   if (value >= 0 && value <= 1) return value;
@@ -147,7 +151,7 @@ export async function eventsToScenes(
       pageTitle: observation.title,
       action: findAction(agentEvents, observation.index + 1, next?.index ?? agentEvents.length, observation.metadata)
     };
-  }).filter((candidate, index, all) => candidate.action || index === all.length - 1);
+  }).filter((candidate, index, all) => (candidate.action || index === all.length - 1) && !isAuthenticationAction(candidate.action));
 
   const hydrated: Array<Candidate & { screenshot: Buffer; afterScreenshot?: Buffer }> = [];
   let previousHash = "";

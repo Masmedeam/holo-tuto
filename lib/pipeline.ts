@@ -22,7 +22,7 @@ export async function generateTutorial(
   try {
     log("job.started", { hostname: sourceUrl.hostname, targetDuration: options.targetDuration, voice: options.voice, delivery: options.delivery });
     notify({ type: "progress", stage: "Preparing", message: "Preparing a secure browser…", progress: 6, jobId });
-    const capture = await runCaptureSession(sourceUrl, feature, options.targetDuration, notify, jobId);
+    const capture = await runCaptureSession(sourceUrl, feature, options, notify, jobId);
     log("capture.completed", { hSessionId: capture.id, eventCount: capture.events.length });
     notify({ type: "progress", stage: "Curating", message: "Choosing the clearest visual steps…", progress: 50, jobId });
     const tutorial = await eventsToScenes(capture.events, capture.answer, sourceUrl, feature, options);

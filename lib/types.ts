@@ -60,4 +60,8 @@ export type GenerationOptions = {
   delivery: DeliveryStyle;
   introduction: string;
   targetDuration: TargetDuration;
+  authentication?: {
+    username: string;
+    password: string;
+  };
 };

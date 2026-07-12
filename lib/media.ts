@@ -141,7 +141,7 @@ function cameraFilter(box: ReturnType<typeof focusBox>) {
   const targetY = box?.centerY ?? HEIGHT / 2;
   // Oversampling and even-pixel crop positions prevent zoompan's fractional
   // chroma rounding from alternating between adjacent pixels (visible as shake).
-  return `scale=${WIDTH * 2}:${HEIGHT * 2}:flags=lanczos,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH * 2}x${HEIGHT * 2}:fps=30,scale=${WIDTH}:${HEIGHT}:flags=lanczos`;
+  return `format=gbrp,scale=${WIDTH * 2}:${HEIGHT * 2}:flags=lanczos+accurate_rnd+full_chroma_int,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH * 2}x${HEIGHT * 2}:fps=30,scale=${WIDTH}:${HEIGHT}:flags=lanczos+accurate_rnd+full_chroma_int`;
 }
 
 export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: Buffer[]) {
@@ -204,7 +204,7 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         `[camera][5:v]overlay=0:0,fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
         `[6:a]adelay=350:all=1,apad=pad_dur=2[a]`,
         "-map", "[v]", "-map", "[a]", "-t", String(sceneDuration), "-r", "30",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
+        "-c:v", "libx264", "-preset", "medium", "-tune", "stillimage", "-crf", "14", "-profile:v", "high", "-level", "4.1", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
       ], { timeout: 180_000, maxBuffer: 3_000_000 });
     } catch (error) {
       console.error(error);

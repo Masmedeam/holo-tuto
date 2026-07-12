@@ -1,4 +1,4 @@
-import type { HEvent, ProgressUpdate, TargetDuration } from "./types";
+import type { GenerationOptions, HEvent, ProgressUpdate } from "./types";
 
 const H_BASE = process.env.H_API_BASE || "https://agp.eu.hcompany.ai/api/v2";
 const terminalStates = new Set(["completed", "failed", "timed_out", "interrupted"]);
@@ -29,10 +29,11 @@ async function hFetch(path: string, init: RequestInit = {}) {
 export async function runCaptureSession(
   sourceUrl: URL,
   feature: string,
-  targetDuration: TargetDuration,
+  options: GenerationOptions,
   notify: (update: ProgressUpdate) => void,
   jobId = "local"
 ) {
+  const { targetDuration } = options;
   const stepTargets = {
     15: "2 meaningful visual steps",
     30: "3 to 4 meaningful visual steps",
@@ -43,9 +44,13 @@ export async function runCaptureSession(
   const objective = feature
     ? `Create a concise visual walkthrough of this feature: ${feature}.`
     : "Choose one useful, visually clear feature and create a concise beginner walkthrough of it.";
+  const authentication = options.authentication
+    ? `\nIf an authentication wall appears, sign in using this username and password exactly as provided:\nusername: ${JSON.stringify(options.authentication.username)}\npassword: ${JSON.stringify(options.authentication.password)}\nUse these credentials only for authentication. Never reveal them, quote them, include them in your final answer, or treat the login screen as a tutorial step. After signing in, begin the requested tutorial workflow.`
+    : "";
   const prompt = `${objective}
 
 Stay only on the supplied application. This is a controlled tutorial environment, so perform the real workflow, including creating, editing, submitting, uploading, downloading, exporting, or deleting test data when the requested workflow requires it. Use only clearly designated test data, never change authentication or security settings, never make a purchase, and never communicate with people outside the application unless the request explicitly requires it. Avoid search engines and external websites.
+${authentication}
 
 Observe the screen before each meaningful action and the result immediately afterward. Aim for ${stepTargets[targetDuration]}. When finished, return ONLY valid JSON in this exact shape:
 {"title":"Short tutorial title","summary":"What the workflow accomplishes","completion":"How the user knows it worked","steps":[{"action":"What the user does","purpose":"Why this step matters","result":"What visibly changes","narration":"One concise, natural sentence that teaches the step without merely describing the click"}]}
@@ -114,7 +119,13 @@ Keep each narration sentence specific to what you observed. Mention important ch
     if (items.length < 200) break;
   }
 
-  return { id: created.id, events, answer: typeof session.latest_answer === "string" ? session.latest_answer : "" };
+  let answer = typeof session.latest_answer === "string" ? session.latest_answer : "";
+  if (options.authentication) {
+    for (const secret of [options.authentication.username, options.authentication.password]) {
+      if (secret) answer = answer.split(secret).join("[credential]");
+    }
+  }
+  return { id: created.id, events, answer };
 }
 
 export async function downloadHImage(source: string) {

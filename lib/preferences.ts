@@ -9,10 +9,17 @@ function cleanIntroduction(value: unknown) {
   return value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
+function authentication(body: Record<string, unknown>): GenerationOptions["authentication"] {
+  const username = typeof body.loginUsername === "string" ? body.loginUsername.slice(0, 320) : "";
+  const password = typeof body.loginPassword === "string" ? body.loginPassword.slice(0, 512) : "";
+  return username && password ? { username, password } : undefined;
+}
+
 export function parseGenerationOptions(body: Record<string, unknown>): GenerationOptions {
   const voice = voices.has(body.voice as VoiceName) ? body.voice as VoiceName : "Orla";
   const delivery = deliveries.has(body.delivery as DeliveryStyle) ? body.delivery as DeliveryStyle : "professional";
   const numericDuration = Number(body.targetDuration);
   const targetDuration = durations.has(numericDuration as TargetDuration) ? numericDuration as TargetDuration : 45;
-  return { voice, delivery, introduction: cleanIntroduction(body.introduction), targetDuration };
+  const applicationAuthentication = authentication(body);
+  return { voice, delivery, introduction: cleanIntroduction(body.introduction), targetDuration, ...(applicationAuthentication ? { authentication: applicationAuthentication } : {}) };
 }

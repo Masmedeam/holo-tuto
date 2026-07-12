@@ -55,6 +55,7 @@ Private signed video URL
 - **Narrator:** choose from the available Gradium voices.
 - **Delivery:** professional, warm, energetic, or calm.
 - **Opening line:** optional exact wording for the start of the tutorial.
+- **Application sign-in:** optional username and password for gated applications. Credentials are used only when the browser encounters an authentication wall and are not saved in tutorial history.
 - **Target length:** 15, 30, 45, 60, or 90 seconds.
 
 ## Technology
@@ -125,6 +126,7 @@ Optional deployment variables include `GOOGLE_CLOUD_REGION`, `CLOUD_RUN_SERVICE`
 - Recent tutorial metadata is stored only in the creator's browser; access links expire after seven days.
 - The public generation endpoint requires an independent beta access code.
 - Browser sessions remain on the submitted hostname.
+- Optional application credentials are passed only to the controlled browser run, are excluded from logs and generated scripts, and are never persisted by Holo.
 - Controlled workflows may change designated test data, but purchases, authentication changes, and unrequested external communication remain prohibited.
 
 ## Project structure
