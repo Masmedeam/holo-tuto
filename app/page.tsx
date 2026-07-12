@@ -30,7 +30,6 @@ export default function LandingPage() {
       </header>
 
       <section className="landing-hero">
-        <div className="eyebrow"><span>✦</span> Video tutorials, made for you</div>
         <h1>Show people how<br /><em>your product works.</em></h1>
         <p>Paste a web app link and name a task. Voodoo uses the product, captures the important steps, and creates a clear narrated video.</p>
         <div className="hero-actions">
@@ -45,7 +44,6 @@ export default function LandingPage() {
 
       <section className="story-section section-problem" id="why-voodoo">
         <div className="section-copy">
-          <span className="section-number">01 · THE PROBLEM</span>
           <h2>Helpful videos should not take days to make.</h2>
           <p>People want to see how a product works. But recording, narrating, editing, and updating every tutorial takes too much time.</p>
           <p>So videos go out of date—or never get made at all.</p>
@@ -57,7 +55,6 @@ export default function LandingPage() {
 
       <section className="story-section reverse section-proof">
         <div className="section-copy">
-          <span className="section-number">02 · WHY VIDEO</span>
           <h2>Showing is better than telling.</h2>
           <p>A short walkthrough gives people the full picture: where to go, what to click, and what should happen next.</p>
           <ul className="simple-list">
@@ -73,7 +70,6 @@ export default function LandingPage() {
 
       <section className="story-section" id="how-it-works">
         <div className="section-copy">
-          <span className="section-number">03 · HOW IT WORKS</span>
           <h2>From app link to finished video.</h2>
           <div className="step-list">
             <div><b>1</b><p><strong>Describe the task.</strong><br />Add the app link and say what you want to explain.</p></div>
@@ -88,7 +84,6 @@ export default function LandingPage() {
 
       <section className="story-section reverse section-current">
         <div className="section-copy">
-          <span className="section-number">04 · STAY CURRENT</span>
           <h2>Your product changed. Your tutorial can too.</h2>
           <p>When the interface changes, skip the studio setup and editing timeline. Run the tutorial again and get a fresh version.</p>
           <div className="callout"><span>↻</span><p><strong>Regenerate, don&apos;t re-record.</strong><br />Keep help content close to the product people actually use.</p></div>
@@ -100,7 +95,6 @@ export default function LandingPage() {
 
       <section className="use-case-section" id="use-cases">
         <div className="section-heading">
-          <span className="section-number">05 · USE CASES</span>
           <h2>One clear video.<br />Many useful moments.</h2>
           <p>Use Voodoo anywhere someone needs to understand software quickly.</p>
         </div>
@@ -114,7 +108,6 @@ export default function LandingPage() {
 
       <section className="story-section reverse section-teams">
         <div className="section-copy">
-          <span className="section-number">06 · BUILT FOR TEAMS</span>
           <h2>Make product knowledge easy to find and easy to trust.</h2>
           <p>Give every team a simple way to create visual help, without waiting for a video expert.</p>
           <div className="team-pills">{teams.map((team) => <span key={team}>{team}</span>)}</div>
@@ -126,7 +119,6 @@ export default function LandingPage() {
 
       <section className="final-cta">
         <div className="cta-spark">✦</div>
-        <span>READY WHEN YOU ARE</span>
         <h2>Turn your next workflow<br />into a clear video.</h2>
         <p>No recording setup. No editing timeline. Just show Voodoo what to explain.</p>
         <Link className="primary-cta light" href="/app">Create a tutorial <span>→</span></Link>
