@@ -2,6 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 
+// The marketing page changes independently from the generator. Keep it out of
+// shared edge caches so a deployment can never leave the previous root page live.
+export const dynamic = "force-dynamic";
+
 const useCases = [
   { icon: "↗", title: "Customer onboarding", text: "Help new users reach their first win without a long call." },
   { icon: "?", title: "Support", text: "Answer repeat questions with a short, clear walkthrough." },
