@@ -34,7 +34,7 @@ export async function generateTutorial(
     const rendered = await renderTutorial(workDir, tutorial.scenes, audio);
     log("render.completed", { duration: Number(rendered.duration.toFixed(1)) });
     notify({ type: "progress", stage: "Finishing", message: "Uploading your tutorial…", progress: 94, jobId });
-    const videoUrl = await publishVideo(rendered.output, jobId);
+    const published = await publishVideo(rendered.output, jobId, tutorial.title);
     log("job.completed");
     notify({
       type: "complete",
@@ -42,11 +42,11 @@ export async function generateTutorial(
       message: "Your tutorial is ready.",
       progress: 100,
       jobId,
-      videoUrl,
+      ...published,
       title: tutorial.title,
       duration: Number(rendered.duration.toFixed(1))
     });
-    return { jobId, hSessionId: capture.id, ...tutorial, videoUrl, duration: rendered.duration };
+    return { jobId, hSessionId: capture.id, ...tutorial, ...published, duration: rendered.duration };
   } catch (error) {
     log("job.failed", { error: error instanceof Error ? error.message : String(error) });
     throw error;

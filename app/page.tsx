@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/Logo";
 
 type ProgressEvent = {
@@ -9,12 +9,23 @@ type ProgressEvent = {
   message?: string;
   progress?: number;
   videoUrl?: string;
+  downloadUrl?: string;
+  expiresAt?: string;
   jobId?: string;
   title?: string;
   duration?: number;
 };
 
+type HistoryVideo = ProgressEvent & {
+  type: "complete";
+  videoUrl: string;
+  createdAt: string;
+  sourceUrl?: string;
+};
+
 const stages = ["Preparing", "Navigating", "Curating", "Narrating", "Rendering", "Finishing"];
+const historyKey = "holo:tutorial-history:v1";
+const maxHistoryItems = 20;
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -27,11 +38,45 @@ export default function Home() {
   const [status, setStatus] = useState<ProgressEvent | null>(null);
   const [running, setRunning] = useState(false);
   const [video, setVideo] = useState<ProgressEvent | null>(null);
+  const [history, setHistory] = useState<HistoryVideo[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(historyKey) || "[]") as HistoryVideo[];
+      if (Array.isArray(stored)) setHistory(stored.filter((item) => item?.type === "complete" && typeof item.videoUrl === "string" && typeof item.createdAt === "string").slice(0, maxHistoryItems));
+    } catch {
+      localStorage.removeItem(historyKey);
+    }
+  }, []);
 
   const activeStage = useMemo(() => {
     if (!status?.stage) return -1;
     return stages.findIndex((stage) => stage.toLowerCase() === status.stage?.toLowerCase());
   }, [status]);
+
+  function rememberVideo(update: ProgressEvent) {
+    if (!update.videoUrl) return;
+    const item: HistoryVideo = {
+      ...update,
+      type: "complete",
+      videoUrl: update.videoUrl,
+      createdAt: new Date().toISOString(),
+      sourceUrl: url
+    };
+    setHistory((current) => {
+      const next = [item, ...current.filter((previous) => previous.jobId !== item.jobId)].slice(0, maxHistoryItems);
+      try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
+      return next;
+    });
+  }
+
+  function removeHistoryItem(identifier: string) {
+    setHistory((current) => {
+      const next = current.filter((item) => (item.jobId || item.createdAt) !== identifier);
+      try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
+      return next;
+    });
+  }
 
   async function generate(event: FormEvent) {
     event.preventDefault();
@@ -65,7 +110,10 @@ export default function Home() {
           const update = JSON.parse(line) as ProgressEvent;
           if (update.type === "error") throw new Error(update.message || "Generation failed.");
           setStatus(update);
-          if (update.type === "complete") setVideo(update);
+          if (update.type === "complete") {
+            setVideo(update);
+            rememberVideo(update);
+          }
         }
         if (done) break;
       }
@@ -187,6 +235,7 @@ export default function Home() {
               <h3>{video.title || "Your Holo Tutorial"}</h3>
               <div className="result-actions">
                 <a href={video.videoUrl} target="_blank" rel="noreferrer">Open video</a>
+                <a className="secondary-action" href={video.downloadUrl || video.videoUrl}>Download</a>
                 <button type="button" onClick={() => { setStatus(null); setVideo(null); }}>Create another</button>
               </div>
             </div>
@@ -206,6 +255,36 @@ export default function Home() {
           )}
         </aside>
       </section>
+
+      {history.length > 0 && (
+        <section className="history-section">
+          <div className="history-heading">
+            <div><span className="step-label">YOUR LIBRARY</span><h2>Previous tutorials</h2></div>
+            <p>Saved in this browser. Private video links remain available for seven days.</p>
+          </div>
+          <div className="history-grid">
+            {history.map((item) => {
+              const expired = item.expiresAt ? Date.parse(item.expiresAt) <= Date.now() : false;
+              return (
+                <article className="history-card" key={item.jobId || item.createdAt}>
+                  <button className="history-preview" type="button" disabled={expired} onClick={() => { setStatus(item); setVideo(item); window.scrollTo({ top: 430, behavior: "smooth" }); }}>
+                    <span>{expired ? "Expired" : "▶"}</span>
+                  </button>
+                  <div className="history-copy">
+                    <h3>{item.title || "Untitled tutorial"}</h3>
+                    <p>{new Date(item.createdAt).toLocaleString()}{item.duration ? ` · ${Math.round(item.duration)}s` : ""}</p>
+                    <div className="history-actions">
+                      {!expired && <a href={item.videoUrl} target="_blank" rel="noreferrer">Watch</a>}
+                      {!expired && <a href={item.downloadUrl || item.videoUrl}>Download</a>}
+                      <button type="button" onClick={() => removeHistoryItem(item.jobId || item.createdAt)}>Remove</button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
     </main>
   );

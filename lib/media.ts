@@ -94,7 +94,7 @@ async function renderFocus(scene: TutorialScene, output: string, box: ReturnType
 }
 
 async function renderCursor(output: string) {
-  const svg = `<svg width="46" height="58" viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="34" height="44" viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
     <path d="M7 4L38 33L24 35L31 50L22 54L15 38L6 48Z" fill="#ffffff" stroke="#101828" stroke-width="3" stroke-linejoin="round"/>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(output);
@@ -118,7 +118,6 @@ async function renderTitles(scene: TutorialScene, output: string, index: number,
     <text x="1110" y="53" text-anchor="middle" font-family="DejaVu Sans" font-size="13" font-weight="700" letter-spacing="1" fill="white">STEP ${index + 1} OF ${total}</text>
     <rect x="80" y="594" width="1120" height="105" rx="22" fill="#050b15" fill-opacity=".92" stroke="#ffffff" stroke-opacity=".13"/>
     ${captionLines.map((line, lineIndex) => `<text x="640" y="${642 + lineIndex * 31}" text-anchor="middle" font-family="DejaVu Sans" font-size="24" font-weight="500" fill="white">${escapeXml(line)}</text>`).join("")}
-    <text x="112" y="681" font-family="DejaVu Sans" font-size="10" font-weight="700" letter-spacing="2" fill="#a99dff">HOLO TUTORIAL</text>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(output);
 }
@@ -140,7 +139,9 @@ function cameraFilter(box: ReturnType<typeof focusBox>) {
   const zoomDelta = (zoom - 1).toFixed(3);
   const targetX = box?.centerX ?? WIDTH / 2;
   const targetY = box?.centerY ?? HEIGHT / 2;
-  return `zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='(iw-iw/zoom)*${targetX / WIDTH}':y='(ih-ih/zoom)*${targetY / HEIGHT}':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
+  // Oversampling and even-pixel crop positions prevent zoompan's fractional
+  // chroma rounding from alternating between adjacent pixels (visible as shake).
+  return `scale=${WIDTH * 2}:${HEIGHT * 2}:flags=lanczos,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH * 2}x${HEIGHT * 2}:fps=30,scale=${WIDTH}:${HEIGHT}:flags=lanczos`;
 }
 
 export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: Buffer[]) {
@@ -173,8 +174,8 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const audioDuration = await duration(wav);
     const sceneDuration = Math.max(3.2, audioDuration + 1.25);
     totalDuration += sceneDuration;
-    const targetX = Math.round((box?.centerX ?? WIDTH / 2) - 12);
-    const targetY = Math.round((box?.centerY ?? HEIGHT / 2) - 8);
+    const targetX = Math.round((box?.centerX ?? WIDTH / 2) - 8);
+    const targetY = Math.round((box?.centerY ?? HEIGHT / 2) - 6);
     const startX = index % 2 ? 1060 : 150;
     const startY = 610;
     const movementEnd = Math.min(1.45, Math.max(.85, sceneDuration * .28));
@@ -198,7 +199,7 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         `[0:v][1:v]xfade=transition=fade:duration=0.28:offset=${transitionAt.toFixed(2)}[screen];` +
         `[screen][2:v]overlay=0:0[focused];` +
         `[focused][3:v]overlay=x='${cursorX}':y='${cursorY}':eval=frame[cursor];` +
-        `[cursor][4:v]overlay=x=${targetX - 43}:y=${targetY - 47}:enable='between(t,${pulseStart.toFixed(2)},${pulseEnd.toFixed(2)})'[action];` +
+        `[cursor][4:v]overlay=x=${targetX - 47}:y=${targetY - 49}:enable='between(t,${pulseStart.toFixed(2)},${pulseEnd.toFixed(2)})'[action];` +
         `[action]${cameraFilter(box)}[camera];` +
         `[camera][5:v]overlay=0:0,fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
         `[6:a]adelay=350:all=1,apad=pad_dur=2[a]`,

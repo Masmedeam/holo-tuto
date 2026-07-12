@@ -19,6 +19,7 @@ Paste an application URL, describe what should be explained, and choose a voice,
 - Generates natural voice-over with Gradium.
 - Renders a shareable 1280×720 MP4 with FFmpeg.
 - Publishes videos as private Google Cloud Storage objects with expiring signed URLs.
+- Keeps a per-browser library of recent tutorials with watch and download actions.
 
 ## How it works
 
@@ -121,6 +122,7 @@ Optional deployment variables include `GOOGLE_CLOUD_REGION`, `CLOUD_RUN_SERVICE`
 - Vendor credentials are available only to server-side modules.
 - Cloud Run reads credentials from Google Secret Manager.
 - Generated videos remain private and are shared through seven-day signed URLs.
+- Recent tutorial metadata is stored only in the creator's browser; access links expire after seven days.
 - The public generation endpoint requires an independent beta access code.
 - Browser sessions remain on the submitted hostname.
 - Controlled workflows may change designated test data, but purchases, authentication changes, and unrequested external communication remain prohibited.

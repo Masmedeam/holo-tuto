@@ -5,6 +5,8 @@ export type ProgressUpdate = {
   progress?: number;
   jobId?: string;
   videoUrl?: string;
+  downloadUrl?: string;
+  expiresAt?: string;
   title?: string;
   duration?: number;
 };

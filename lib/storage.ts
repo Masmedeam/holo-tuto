@@ -2,14 +2,20 @@ import { Storage } from "@google-cloud/storage";
 import { mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 
-export async function publishVideo(filePath: string, jobId: string) {
+function safeFilename(title: string) {
+  const stem = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70);
+  return `${stem || "holo-tutorial"}.mp4`;
+}
+
+export async function publishVideo(filePath: string, jobId: string, title: string) {
   const bucketName = process.env.VIDEO_BUCKET;
   if (!bucketName) {
     const generated = path.join(process.cwd(), "public", "generated");
     await mkdir(generated, { recursive: true });
     const target = path.join(generated, `${jobId}.mp4`);
     await copyFile(filePath, target);
-    return `/generated/${jobId}.mp4`;
+    const videoUrl = `/generated/${jobId}.mp4`;
+    return { videoUrl, downloadUrl: videoUrl };
   }
 
   const storage = new Storage();
@@ -24,10 +30,21 @@ export async function publishVideo(filePath: string, jobId: string) {
       metadata: { generatedBy: "holo-tutorial" }
     }
   });
-  const [url] = await bucket.file(objectName).getSignedUrl({
-    version: "v4",
-    action: "read",
-    expires: Date.now() + 7 * 24 * 60 * 60 * 1000
-  });
-  return url;
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const file = bucket.file(objectName);
+  const [videoUrl, downloadUrl] = await Promise.all([
+    file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: expiresAt
+    }).then(([url]) => url),
+    file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: expiresAt,
+      responseDisposition: `attachment; filename="${safeFilename(title)}"`,
+      responseType: "video/mp4"
+    }).then(([url]) => url)
+  ]);
+  return { videoUrl, downloadUrl, expiresAt: expiresAt.toISOString() };
 }
