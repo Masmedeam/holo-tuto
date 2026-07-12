@@ -70,6 +70,13 @@ gcloud run deploy "$SERVICE" \
   --set-env-vars="VIDEO_BUCKET=$BUCKET" \
   --set-secrets="H_API_KEY=holo-h-api-key:latest,GRADIUM_API_KEY=holo-gradium-api-key:latest,HOLO_ACCESS_CODE=holo-access-code:latest"
 
+LATEST_REVISION="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.latestCreatedRevisionName)')"
+gcloud run services update-traffic "$SERVICE" \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --to-revisions="${LATEST_REVISION}=100" \
+  --quiet
+
 SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
 echo "SERVICE_URL=$SERVICE_URL"
 echo "ACCESS_CODE is stored in Secret Manager as holo-access-code."
