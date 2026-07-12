@@ -37,6 +37,17 @@ export type TutorialScene = {
   };
 };
 
+export type NarrationTiming = {
+  text: string;
+  start: number;
+  stop: number;
+};
+
+export type NarratedAudio = {
+  audio: Buffer;
+  timings: NarrationTiming[];
+};
+
 export type HWorkflowFinding = {
   action?: string;
   purpose?: string;

@@ -15,6 +15,7 @@ Paste an application URL, describe what should be explained, and choose a voice,
 - Reconstructs actions, purposes, visible results, and completion states.
 - Normalizes browser coordinates and creates adaptive target highlights.
 - Adds smooth camera framing, cursor travel, click feedback, spotlight focus, and before/after transitions.
+- Synchronizes transparent, word-highlighted captions to Gradium's narration timestamps.
 - Builds scene-level teaching scripts from the observed workflow.
 - Generates natural voice-over with Gradium.
 - Captures a 1920×1080 browser viewport and renders a shareable 1080p MP4 with FFmpeg.
@@ -52,7 +53,7 @@ Private signed video URL
 ## Tutorial controls
 
 - **Feature or workflow:** the specific task Holo should demonstrate. When omitted, Holo selects a useful feature.
-- **Narrator:** choose from the available Gradium voices.
+- **Narrator:** choose from the available Gradium voices and hear a bundled sample of each voice instantly.
 - **Delivery:** professional, warm, energetic, or calm.
 - **Opening line:** optional exact wording for the start of the tutorial.
 - **Application sign-in:** optional username and password for gated applications. Credentials are used only when the browser encounters an authentication wall and are not saved in tutorial history.

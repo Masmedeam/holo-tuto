@@ -1,4 +1,4 @@
-import type { GenerationOptions, ProgressUpdate, TutorialScene } from "./types";
+import type { GenerationOptions, NarratedAudio, NarrationTiming, ProgressUpdate, TutorialScene, VoiceName } from "./types";
 import WebSocket from "ws";
 
 const GRADIUM_BASE = "https://api.gradium.ai/api";
@@ -21,9 +21,10 @@ async function chooseVoice(name: GenerationOptions["voice"]) {
 }
 
 function synthesize(text: string, voiceId: string, delivery: { padding_bonus: number; temp: number }, context: { jobId: string; scene: number }) {
-  return new Promise<Buffer>((resolve, reject) => {
+  return new Promise<NarratedAudio>((resolve, reject) => {
     const startedAt = Date.now();
     const chunks: Buffer[] = [];
+    const timings: NarrationTiming[] = [];
     let settled = false;
     const log = (event: string, details: Record<string, unknown> = {}) => console.log(JSON.stringify({ service: "holo", jobId: context.jobId, scene: context.scene, event, elapsedMs: Date.now() - startedAt, ...details }));
     const socket = new WebSocket("wss://api.gradium.ai/api/speech/tts", {
@@ -38,7 +39,7 @@ function synthesize(text: string, voiceId: string, delivery: { padding_bonus: nu
         reject(error);
       } else if (audio) {
         log("gradium.completed", { bytes: audio.length, chunkCount: chunks.length });
-        resolve(audio);
+        resolve({ audio, timings });
       }
     };
     const timeout = setTimeout(() => {
@@ -58,13 +59,15 @@ function synthesize(text: string, voiceId: string, delivery: { padding_bonus: nu
     });
     socket.on("message", (raw) => {
       try {
-        const message = JSON.parse(raw.toString()) as { type?: string; audio?: string; message?: string };
+        const message = JSON.parse(raw.toString()) as { type?: string; audio?: string; message?: string; text?: string; start_s?: number; stop_s?: number };
         if (message.type === "ready") {
           log("gradium.ready");
           socket.send(JSON.stringify({ type: "text", text }));
           socket.send(JSON.stringify({ type: "end_of_stream" }));
         } else if (message.type === "audio" && message.audio) {
           chunks.push(Buffer.from(message.audio, "base64"));
+        } else if (message.type === "text" && message.text && Number.isFinite(message.start_s) && Number.isFinite(message.stop_s)) {
+          timings.push({ text: message.text, start: message.start_s!, stop: message.stop_s! });
         } else if (message.type === "end_of_stream") {
           const audio = Buffer.concat(chunks);
           socket.close();
@@ -106,7 +109,7 @@ export async function narrateScenes(
     energetic: { padding_bonus: -0.8, temp: 1.05 },
     calm: { padding_bonus: 1.4, temp: 0.45 }
   }[options.delivery];
-  const audio: Buffer[] = [];
+  const audio: NarratedAudio[] = [];
   for (let index = 0; index < scenes.length; index++) {
     notify({
       type: "progress",
@@ -114,9 +117,9 @@ export async function narrateScenes(
       message: `Recording narration · ${index + 1} of ${scenes.length}`,
       progress: 58 + Math.round((index / scenes.length) * 17)
     });
-    let buffer: Buffer;
+    let narrated: NarratedAudio;
     try {
-      buffer = await synthesize(scenes[index].narration, voiceId, delivery, { jobId, scene: index + 1 });
+      narrated = await synthesize(scenes[index].narration, voiceId, delivery, { jobId, scene: index + 1 });
     } catch (error) {
       console.warn(JSON.stringify({ service: "holo", jobId, scene: index + 1, event: "gradium.fallback", error: error instanceof Error ? error.message : String(error) }));
       notify({
@@ -126,10 +129,21 @@ export async function narrateScenes(
         progress: 58 + Math.round((index / scenes.length) * 17),
         jobId
       });
-      buffer = await synthesizeRest(scenes[index].narration, voiceId);
+      narrated = { audio: await synthesizeRest(scenes[index].narration, voiceId), timings: [] };
     }
-    if (buffer.length < 44 || buffer.subarray(0, 4).toString("ascii") !== "RIFF") throw new Error("Gradium returned an invalid WAV file.");
-    audio.push(buffer);
+    if (narrated.audio.length < 44 || narrated.audio.subarray(0, 4).toString("ascii") !== "RIFF") throw new Error("Gradium returned an invalid WAV file.");
+    audio.push(narrated);
   }
+  return audio;
+}
+
+const previewCache = new Map<VoiceName, Buffer>();
+
+export async function generateVoicePreview(name: VoiceName) {
+  const cached = previewCache.get(name);
+  if (cached) return cached;
+  const voiceId = await chooseVoice(name);
+  const audio = await synthesizeRest("Welcome. Let me guide you through this workflow, one clear step at a time.", voiceId);
+  previewCache.set(name, audio);
   return audio;
 }

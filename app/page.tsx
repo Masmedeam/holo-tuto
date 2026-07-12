@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 
 type ProgressEvent = {
@@ -26,6 +26,13 @@ type HistoryVideo = ProgressEvent & {
 const stages = ["Preparing", "Navigating", "Curating", "Narrating", "Rendering", "Finishing"];
 const historyKey = "holo:tutorial-history:v1";
 const maxHistoryItems = 20;
+const narratorOptions = [
+  { name: "Orla", tone: "polished" },
+  { name: "Niamh", tone: "approachable" },
+  { name: "Quinn", tone: "contemporary" },
+  { name: "Harper", tone: "confident" },
+  { name: "Toby", tone: "concise" }
+];
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -41,6 +48,8 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [video, setVideo] = useState<ProgressEvent | null>(null);
   const [history, setHistory] = useState<HistoryVideo[]>([]);
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const previewAudio = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     try {
@@ -49,6 +58,7 @@ export default function Home() {
     } catch {
       localStorage.removeItem(historyKey);
     }
+    return () => previewAudio.current?.pause();
   }, []);
 
   const activeStage = useMemo(() => {
@@ -78,6 +88,21 @@ export default function Home() {
       try { localStorage.setItem(historyKey, JSON.stringify(next)); } catch { /* Browser storage may be unavailable. */ }
       return next;
     });
+  }
+
+  function hearVoice(name: string) {
+    previewAudio.current?.pause();
+    if (playingVoice === name) {
+      previewAudio.current = null;
+      setPlayingVoice(null);
+      return;
+    }
+    const audio = new Audio(`/voice-previews/${name}.wav`);
+    previewAudio.current = audio;
+    setPlayingVoice(name);
+    audio.onended = () => setPlayingVoice(null);
+    audio.onerror = () => setPlayingVoice(null);
+    audio.play().catch(() => setPlayingVoice(null));
   }
 
   async function generate(event: FormEvent) {
@@ -169,17 +194,22 @@ export default function Home() {
               <i aria-hidden="true">+</i>
             </summary>
             <div className="options-content">
-              <div className="option-grid">
-                <label>
-                  Narrator
-                  <select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={running}>
-                    <option value="Orla">Orla · polished</option>
-                    <option value="Niamh">Niamh · approachable</option>
-                    <option value="Quinn">Quinn · contemporary</option>
-                    <option value="Harper">Harper · confident</option>
-                    <option value="Toby">Toby · concise</option>
-                  </select>
-                </label>
+              <div className="narration-options">
+                <div className="narrator-field">
+                  <span className="field-label">Narrator</span>
+                  <div className="voice-picker">
+                    {narratorOptions.map((option) => (
+                      <div className={`voice-option ${voice === option.name ? "selected" : ""}`} key={option.name}>
+                        <button type="button" className="voice-select" aria-pressed={voice === option.name} onClick={() => setVoice(option.name)} disabled={running}>
+                          <strong>{option.name}</strong><span>{option.tone}</span>
+                        </button>
+                        <button type="button" className="voice-hear" onClick={() => hearVoice(option.name)} aria-label={`${playingVoice === option.name ? "Stop" : "Hear"} ${option.name}`}>
+                          {playingVoice === option.name ? "■ Stop" : "▶ Hear"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <label>
                   Delivery
                   <select value={delivery} onChange={(e) => setDelivery(e.target.value)} disabled={running}>

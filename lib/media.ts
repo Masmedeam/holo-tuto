@@ -3,31 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import path from "node:path";
 import sharp from "sharp";
-import type { TargetDuration, TutorialScene } from "./types";
+import type { NarratedAudio, NarrationTiming, TargetDuration, TutorialScene } from "./types";
 
 const exec = promisify(execFile);
 const WIDTH = 1920;
 const HEIGHT = 1080;
-const DESIGN_WIDTH = 1280;
-const DESIGN_HEIGHT = 720;
-
-function escapeXml(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&apos;");
-}
-
-function wrap(value: string, max = 68) {
-  const words = value.split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    if (`${line} ${word}`.trim().length > max && line) {
-      lines.push(line);
-      line = word;
-    } else line = `${line} ${word}`.trim();
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 2);
-}
+const CAPTION_WIDTH = 1600;
+const CAPTION_HEIGHT = 130;
+const CAPTION_X = (WIDTH - CAPTION_WIDTH) / 2;
+const CAPTION_Y = HEIGHT - CAPTION_HEIGHT - 22;
 
 async function screenshotGeometry(screenshot: Buffer) {
   const metadata = await sharp(screenshot).metadata();
@@ -83,42 +67,91 @@ function focusBox(scene: TutorialScene, geometry: Awaited<ReturnType<typeof scre
 async function renderFocus(scene: TutorialScene, output: string, box: ReturnType<typeof focusBox>) {
   const cutout = box?.bounded
     ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="black"/>`
-    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="52" fill="black"/>` : "";
+    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="82" fill="black"/>` : "";
   const outline = box?.bounded
-    ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="none" stroke="#a99dff" stroke-width="6"/>`
-    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="52" fill="none" stroke="#a99dff" stroke-width="6"/>` : "";
+    ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="none" stroke="#a99dff" stroke-opacity=".42" stroke-width="4"/>`
+    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="82" fill="none" stroke="#a99dff" stroke-opacity=".32" stroke-width="3"/>` : "";
   const markup = box ? `<defs><mask id="spot"><rect width="${WIDTH}" height="${HEIGHT}" fill="white"/>${cutout}</mask></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#07101f" fill-opacity=".30" mask="url(#spot)"/>${outline}` : "";
+    <rect width="${WIDTH}" height="${HEIGHT}" fill="#07101f" fill-opacity=".16" mask="url(#spot)"/>${outline}` : "";
   await sharp(Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">${markup}</svg>`)).png().toFile(output);
 }
 
 async function renderCursor(output: string) {
-  const svg = `<svg width="45" height="58" viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="32" height="40" viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
     <path d="M7 4L38 33L24 35L31 50L22 54L15 38L6 48Z" fill="#ffffff" stroke="#101828" stroke-width="3" stroke-linejoin="round"/>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(output);
 }
 
 async function renderPulse(output: string, color: string) {
-  const svg = `<svg width="150" height="150" viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="55" cy="55" r="41" fill="${color}" fill-opacity=".10" stroke="${color}" stroke-opacity=".45" stroke-width="3"/>
-    <circle cx="55" cy="55" r="18" fill="${color}" fill-opacity=".22" stroke="#ffffff" stroke-width="2"/>
+  const svg = `<svg width="180" height="180" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="60" cy="60" r="52" fill="${color}" fill-opacity=".025" stroke="${color}" stroke-opacity=".22" stroke-width="2"/>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(output);
 }
 
-async function renderTitles(scene: TutorialScene, output: string, index: number, total: number) {
-  const captionLines = wrap(scene.caption);
-  const heading = scene.heading.length > 54 ? `${scene.heading.slice(0, 53)}…` : scene.heading;
-  const svg = `<svg width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${DESIGN_WIDTH} ${DESIGN_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="42" y="20" width="${Math.min(780, 150 + heading.length * 15)}" height="62" rx="18" fill="#07101f" fill-opacity=".92"/>
-    <text x="66" y="59" font-family="DejaVu Sans" font-size="25" font-weight="700" fill="white">${escapeXml(heading)}</text>
-    <rect x="1017" y="28" width="187" height="40" rx="20" fill="#6558e8" fill-opacity=".94"/>
-    <text x="1110" y="53" text-anchor="middle" font-family="DejaVu Sans" font-size="13" font-weight="700" letter-spacing="1" fill="white">STEP ${index + 1} OF ${total}</text>
-    <rect x="80" y="594" width="1120" height="105" rx="22" fill="#050b15" fill-opacity=".92" stroke="#ffffff" stroke-opacity=".13"/>
-    ${captionLines.map((line, lineIndex) => `<text x="640" y="${642 + lineIndex * 31}" text-anchor="middle" font-family="DejaVu Sans" font-size="24" font-weight="500" fill="white">${escapeXml(line)}</text>`).join("")}
-  </svg>`;
-  await sharp(Buffer.from(svg)).png().toFile(output);
+function captionWords(timings: NarrationTiming[], fallback: string, audioDuration: number, tempo: number) {
+  const words: Array<{ text: string; start: number; stop: number }> = [];
+  for (const segment of timings) {
+    const parts = segment.text.trim().split(/\s+/).filter(Boolean);
+    const span = Math.max(.01, segment.stop - segment.start) / Math.max(1, parts.length);
+    parts.forEach((text, index) => words.push({
+      text,
+      start: (segment.start + span * index) / tempo,
+      stop: (segment.start + span * (index + 1)) / tempo
+    }));
+  }
+  if (words.length) return words;
+  const parts = fallback.trim().split(/\s+/).filter(Boolean);
+  const span = audioDuration / Math.max(1, parts.length);
+  return parts.map((text, index) => ({ text, start: span * index, stop: span * (index + 1) }));
+}
+
+function escapeXml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
+function captionLines(words: Array<{ text: string }>, maxCharacters = 74) {
+  const lines: Array<Array<{ text: string; index: number }>> = [[]];
+  let length = 0;
+  words.forEach((word, index) => {
+    if (length && length + word.text.length + 1 > maxCharacters && lines.length < 2) {
+      lines.push([]);
+      length = 0;
+    }
+    lines.at(-1)!.push({ text: word.text, index });
+    length += word.text.length + 1;
+  });
+  return lines;
+}
+
+async function renderCaptionFrame(words: Array<{ text: string }>, active: number, output: string) {
+  const lines = captionLines(words);
+  const firstY = lines.length === 1 ? 84 : 48;
+  const markup = lines.map((line, lineIndex) => `<text x="${CAPTION_WIDTH / 2}" y="${firstY + lineIndex * 52}" text-anchor="middle" font-family="DejaVu Sans" font-size="40" font-weight="700" fill="white" stroke="#07101f" stroke-opacity=".58" stroke-width="2.5" paint-order="stroke">${line.map((word, wordIndex) => `<tspan dx="${wordIndex ? 12 : 0}" fill="${word.index === active ? "#a99dff" : "#ffffff"}">${escapeXml(word.text)}</tspan>`).join("")}</text>`).join("");
+  await sharp(Buffer.from(`<svg width="${CAPTION_WIDTH}" height="${CAPTION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">${markup}</svg>`)).png().toFile(output);
+}
+
+async function renderCaptions(scene: TutorialScene, narration: NarratedAudio, audioDuration: number, tempo: number, stem: string) {
+  const words = captionWords(narration.timings, scene.narration, audioDuration, tempo);
+  const blank = `${stem}-caption-blank.png`;
+  const frames = words.map((_, index) => `${stem}-caption-${index}.png`);
+  await Promise.all([
+    renderCaptionFrame([], -1, blank),
+    ...frames.map((file, index) => renderCaptionFrame(words, index, file))
+  ]);
+  const entries: Array<{ file: string; duration: number }> = [
+    { file: blank, duration: .18 + (words[0]?.start || 0) },
+    ...frames.map((file, index) => ({
+      file,
+      duration: Math.max(.03, (words[index + 1]?.start ?? words[index].stop) - words[index].start)
+    })),
+    { file: blank, duration: .65 }
+  ];
+  const concat = `${stem}-captions.txt`;
+  const quote = (file: string) => file.replace(/'/g, "'\\''");
+  await writeFile(concat, `${entries.map((entry) => `file '${quote(entry.file)}'\nduration ${entry.duration.toFixed(4)}`).join("\n")}\nfile '${quote(entries.at(-1)!.file)}'`);
+  return concat;
 }
 
 async function duration(file: string) {
@@ -143,12 +176,12 @@ function cameraFilter(box: ReturnType<typeof focusBox>) {
   return `format=yuv444p,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
 }
 
-export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: Buffer[], targetDuration: TargetDuration = 45) {
+export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: NarratedAudio[], targetDuration: TargetDuration = 45) {
   await mkdir(workDir, { recursive: true });
   const segmentFiles: string[] = [];
   let totalDuration = 0;
   const audioFiles = scenes.map((_, index) => path.join(workDir, `scene-${index + 1}.wav`));
-  await Promise.all(audioFiles.map((file, index) => writeFile(file, audio[index])));
+  await Promise.all(audioFiles.map((file, index) => writeFile(file, audio[index].audio)));
   const rawAudioDurations = await Promise.all(audioFiles.map(duration));
   const projectedDuration = rawAudioDurations.reduce((sum, seconds) => sum + Math.max(2.8, seconds + .65), 0);
   const tempo = projectedDuration > targetDuration * 1.08
@@ -162,25 +195,24 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const focus = `${stem}-focus.png`;
     const cursor = `${stem}-cursor.png`;
     const pulse = `${stem}-pulse.png`;
-    const titles = `${stem}-titles.png`;
     const wav = audioFiles[index];
     const mp4 = `${stem}.mp4`;
 
     const geometry = await renderScreen(scenes[index].screenshot, before);
     await renderScreen(scenes[index].afterScreenshot || scenes[index].screenshot, after);
     const box = focusBox(scenes[index], geometry);
+    const audioDuration = rawAudioDurations[index] / tempo;
     await Promise.all([
       renderFocus(scenes[index], focus, box),
       renderCursor(cursor),
-      renderPulse(pulse, scenes[index].action === "type" ? "#2fc69a" : "#8b7cf6"),
-      renderTitles(scenes[index], titles, index, scenes.length)
+      renderPulse(pulse, scenes[index].action === "type" ? "#2fc69a" : "#8b7cf6")
     ]);
+    const captions = await renderCaptions(scenes[index], audio[index], audioDuration, tempo, stem);
 
-    const audioDuration = rawAudioDurations[index] / tempo;
     const sceneDuration = Math.max(2.8, audioDuration + .65);
     totalDuration += sceneDuration;
-    const targetX = Math.round((box?.centerX ?? WIDTH / 2) - 11);
-    const targetY = Math.round((box?.centerY ?? HEIGHT / 2) - 8);
+    const targetX = Math.round((box?.centerX ?? WIDTH / 2) - 5);
+    const targetY = Math.round((box?.centerY ?? HEIGHT / 2) - 3);
     const startX = index % 2 ? 1590 : 225;
     const startY = 915;
     const movementEnd = Math.min(1.45, Math.max(.85, sceneDuration * .28));
@@ -198,15 +230,16 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         "-loop", "1", "-framerate", "30", "-i", focus,
         "-loop", "1", "-framerate", "30", "-i", cursor,
         "-loop", "1", "-framerate", "30", "-i", pulse,
-        "-loop", "1", "-framerate", "30", "-i", titles,
+        "-f", "concat", "-safe", "0", "-i", captions,
         "-i", wav,
         "-filter_complex",
         `[0:v][1:v]xfade=transition=fade:duration=0.28:offset=${transitionAt.toFixed(2)}[screen];` +
         `[screen][2:v]overlay=0:0[focused];` +
         `[focused][3:v]overlay=x='${cursorX}':y='${cursorY}':eval=frame[cursor];` +
-        `[cursor][4:v]overlay=x=${targetX - 64}:y=${targetY - 67}:enable='between(t,${pulseStart.toFixed(2)},${pulseEnd.toFixed(2)})'[action];` +
+        `[cursor][4:v]overlay=x=${targetX - 85}:y=${targetY - 87}:enable='between(t,${pulseStart.toFixed(2)},${pulseEnd.toFixed(2)})'[action];` +
         `[action]${cameraFilter(box)}[camera];` +
-        `[camera][5:v]overlay=0:0,fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
+        `[5:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv444:alpha=straight[captioned];` +
+        `[captioned]fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
         `[6:a]atempo=${tempo.toFixed(4)},adelay=180:all=1,apad=pad_dur=1[a]`,
         "-map", "[v]", "-map", "[a]", "-t", String(sceneDuration), "-r", "30",
         "-c:v", "libx264", "-preset", "fast", "-tune", "stillimage", "-crf", "16", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
