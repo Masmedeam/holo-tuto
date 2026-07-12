@@ -203,9 +203,7 @@ export async function eventsToScenes(
       : kind === "scroll" ? "Scroll to reveal the next part of the workflow."
       : candidate.action ? `Select ${element} to continue.`
       : `Review the completed ${subject}.`);
-    if (index === 0) narration = options.introduction
-      ? `${options.introduction} ${limitWords(narration, Math.max(4, wordsPerScene - options.introduction.split(/\s+/).length))}`
-      : `Here is how to ${subject}. ${narration}`;
+    if (index === 0 && options.introduction) narration = `${options.introduction} ${limitWords(narration, Math.max(4, wordsPerScene - options.introduction.split(/\s+/).length))}`;
     if (isLast && report?.completion && !narration.includes(report.completion)) narration = `${narration} ${report.completion}`;
     narration = options.introduction && index === 0 ? narration : limitWords(narration, wordsPerScene);
 

@@ -65,27 +65,15 @@ function focusBox(scene: TutorialScene, geometry: Awaited<ReturnType<typeof scre
 }
 
 async function renderFocus(scene: TutorialScene, output: string, box: ReturnType<typeof focusBox>) {
-  const cutout = box?.bounded
-    ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="black"/>`
-    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="82" fill="black"/>` : "";
-  const outline = box?.bounded
-    ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="none" stroke="#a99dff" stroke-opacity=".42" stroke-width="4"/>`
-    : box ? `<circle cx="${box.centerX}" cy="${box.centerY}" r="82" fill="none" stroke="#a99dff" stroke-opacity=".32" stroke-width="3"/>` : "";
-  const markup = box ? `<defs><mask id="spot"><rect width="${WIDTH}" height="${HEIGHT}" fill="white"/>${cutout}</mask></defs>
-    <rect width="${WIDTH}" height="${HEIGHT}" fill="#07101f" fill-opacity=".16" mask="url(#spot)"/>${outline}` : "";
+  const markup = box?.bounded
+    ? `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="22" fill="none" stroke="#7b6be3" stroke-opacity=".38" stroke-width="4"/>`
+    : "";
   await sharp(Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">${markup}</svg>`)).png().toFile(output);
 }
 
 async function renderCursor(output: string) {
   const svg = `<svg width="32" height="40" viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
     <path d="M7 4L38 33L24 35L31 50L22 54L15 38L6 48Z" fill="#ffffff" stroke="#101828" stroke-width="3" stroke-linejoin="round"/>
-  </svg>`;
-  await sharp(Buffer.from(svg)).png().toFile(output);
-}
-
-async function renderPulse(output: string, color: string) {
-  const svg = `<svg width="180" height="180" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="60" cy="60" r="52" fill="${color}" fill-opacity=".025" stroke="${color}" stroke-opacity=".22" stroke-width="2"/>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(output);
 }
@@ -128,7 +116,7 @@ function captionLines(words: Array<{ text: string }>, maxCharacters = 74) {
 async function renderCaptionFrame(words: Array<{ text: string }>, active: number, output: string) {
   const lines = captionLines(words);
   const firstY = lines.length === 1 ? 84 : 48;
-  const markup = lines.map((line, lineIndex) => `<text x="${CAPTION_WIDTH / 2}" y="${firstY + lineIndex * 52}" text-anchor="middle" font-family="DejaVu Sans" font-size="40" font-weight="700" fill="white" stroke="#07101f" stroke-opacity=".58" stroke-width="2.5" paint-order="stroke">${line.map((word, wordIndex) => `<tspan dx="${wordIndex ? 12 : 0}" fill="${word.index === active ? "#a99dff" : "#ffffff"}">${escapeXml(word.text)}</tspan>`).join("")}</text>`).join("");
+  const markup = lines.map((line, lineIndex) => `<text x="${CAPTION_WIDTH / 2}" y="${firstY + lineIndex * 52}" text-anchor="middle" font-family="DejaVu Sans" font-size="42" font-weight="700" fill="white" stroke="#07101f" stroke-opacity=".92" stroke-width="4" paint-order="stroke">${line.map((word, wordIndex) => `<tspan dx="${wordIndex ? 12 : 0}" fill="${word.index === active ? "#6550c8" : "#ffffff"}">${escapeXml(word.text)}</tspan>`).join("")}</text>`).join("");
   await sharp(Buffer.from(`<svg width="${CAPTION_WIDTH}" height="${CAPTION_HEIGHT}" xmlns="http://www.w3.org/2000/svg">${markup}</svg>`)).png().toFile(output);
 }
 
@@ -167,13 +155,13 @@ async function duration(file: string) {
 }
 
 function cameraFilter(box: ReturnType<typeof focusBox>) {
-  const zoom = box ? 1.16 : 1.035;
+  const zoom = box ? box.bounded ? 1.22 : 1.28 : 1.04;
   const zoomDelta = (zoom - 1).toFixed(3);
   const targetX = box?.centerX ?? WIDTH / 2;
   const targetY = box?.centerY ?? HEIGHT / 2;
   // Keep the source at its native 1080p canvas and quantize crop positions to
   // even pixels. This avoids shake without the expensive 2x up/downscale pass.
-  return `format=yuv444p,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/42,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
+  return `format=yuv444p,zoompan=z='1+${zoomDelta}*(1-cos(PI*min(on/26,1)))/2':x='trunc(((iw-iw/zoom)*${targetX / WIDTH})/2)*2':y='trunc(((ih-ih/zoom)*${targetY / HEIGHT})/2)*2':d=1:s=${WIDTH}x${HEIGHT}:fps=30`;
 }
 
 export async function renderTutorial(workDir: string, scenes: TutorialScene[], audio: NarratedAudio[], targetDuration: TargetDuration = 45) {
@@ -194,7 +182,6 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const after = `${stem}-after.png`;
     const focus = `${stem}-focus.png`;
     const cursor = `${stem}-cursor.png`;
-    const pulse = `${stem}-pulse.png`;
     const wav = audioFiles[index];
     const mp4 = `${stem}.mp4`;
 
@@ -204,8 +191,7 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const audioDuration = rawAudioDurations[index] / tempo;
     await Promise.all([
       renderFocus(scenes[index], focus, box),
-      renderCursor(cursor),
-      renderPulse(pulse, scenes[index].action === "type" ? "#2fc69a" : "#8b7cf6")
+      renderCursor(cursor)
     ]);
     const captions = await renderCaptions(scenes[index], audio[index], audioDuration, tempo, stem);
 
@@ -215,13 +201,10 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
     const targetY = Math.round((box?.centerY ?? HEIGHT / 2) - 3);
     const startX = index % 2 ? 1590 : 225;
     const startY = 915;
-    const movementEnd = Math.min(1.45, Math.max(.85, sceneDuration * .28));
-    const transitionAt = Math.min(sceneDuration - .65, movementEnd + .42);
+    const movementEnd = Math.min(.9, Math.max(.7, sceneDuration * .18));
+    const transitionAt = Math.min(sceneDuration - .65, movementEnd + .28);
     const cursorX = `${startX}+(${targetX}-${startX})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
     const cursorY = `${startY}+(${targetY}-${startY})*(1-cos(PI*min(t/${movementEnd},1)))/2`;
-    const pulseStart = movementEnd - .04;
-    const pulseEnd = movementEnd + .48;
-
     try {
       await exec("ffmpeg", [
         "-y", "-v", "error",
@@ -229,18 +212,16 @@ export async function renderTutorial(workDir: string, scenes: TutorialScene[], a
         "-loop", "1", "-framerate", "30", "-i", after,
         "-loop", "1", "-framerate", "30", "-i", focus,
         "-loop", "1", "-framerate", "30", "-i", cursor,
-        "-loop", "1", "-framerate", "30", "-i", pulse,
         "-f", "concat", "-safe", "0", "-i", captions,
         "-i", wav,
         "-filter_complex",
         `[0:v][1:v]xfade=transition=fade:duration=0.28:offset=${transitionAt.toFixed(2)}[screen];` +
         `[screen][2:v]overlay=0:0[focused];` +
         `[focused][3:v]overlay=x='${cursorX}':y='${cursorY}':eval=frame[cursor];` +
-        `[cursor][4:v]overlay=x=${targetX - 85}:y=${targetY - 87}:enable='between(t,${pulseStart.toFixed(2)},${pulseEnd.toFixed(2)})'[action];` +
-        `[action]${cameraFilter(box)}[camera];` +
-        `[5:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv444:alpha=straight[captioned];` +
+        `[cursor]${cameraFilter(box)}[camera];` +
+        `[4:v]format=rgba[caption];[camera][caption]overlay=${CAPTION_X}:${CAPTION_Y}:eof_action=repeat:format=yuv444:alpha=straight[captioned];` +
         `[captioned]fade=t=in:st=0:d=0.2,fade=t=out:st=${Math.max(.1, sceneDuration - .22).toFixed(2)}:d=0.22,format=yuv420p[v];` +
-        `[6:a]atempo=${tempo.toFixed(4)},adelay=180:all=1,apad=pad_dur=1[a]`,
+        `[5:a]atempo=${tempo.toFixed(4)},adelay=180:all=1,apad=pad_dur=1[a]`,
         "-map", "[v]", "-map", "[a]", "-t", String(sceneDuration), "-r", "30",
         "-c:v", "libx264", "-preset", "fast", "-tune", "stillimage", "-crf", "16", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", mp4
       ], { timeout: 180_000, maxBuffer: 3_000_000 });
