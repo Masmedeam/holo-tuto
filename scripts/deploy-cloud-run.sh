@@ -71,6 +71,5 @@ gcloud run deploy "$SERVICE" \
   --set-secrets="H_API_KEY=holo-h-api-key:latest,GRADIUM_API_KEY=holo-gradium-api-key:latest,HOLO_ACCESS_CODE=holo-access-code:latest"
 
 SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-ACCESS_CODE="$(gcloud secrets versions access latest --secret holo-access-code --project "$PROJECT_ID")"
 echo "SERVICE_URL=$SERVICE_URL"
-echo "ACCESS_CODE=$ACCESS_CODE"
+echo "ACCESS_CODE is stored in Secret Manager as holo-access-code."
